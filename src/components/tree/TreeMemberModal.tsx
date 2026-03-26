@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, ExternalLink, Save, X, Pencil } from "lucide-react";
+import { Trash2, ExternalLink, Save, X, Pencil, ChevronDown, ChevronRight, Check } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Avatar from "@/components/ui/Avatar";
@@ -128,6 +128,43 @@ function RelChip({
   );
 }
 
+interface ConnectRelOption { value: string; label: string; desc: string }
+interface ConnectCategory { key: string; emoji: string; label: string; subtitle: string; rels: ConnectRelOption[] }
+
+function getConnectCategories(gender?: string): ConnectCategory[] {
+  const m = gender === "male", f = gender === "female";
+  return [
+    {
+      key: "immediate", emoji: "👨‍👩‍👧", label: "Immediate Family",
+      subtitle: "Parent · child · sibling · spouse",
+      rels: [
+        { value: "child",      label: "Their parent",                                           desc: "I am their parent" },
+        { value: "parent",     label: m ? "Their son"      : f ? "Their daughter"  : "Their child",   desc: m ? "I am their son"      : f ? "I am their daughter"  : "I am their child" },
+        { value: "sibling",    label: m ? "Their brother"  : f ? "Their sister"    : "Their sibling", desc: m ? "I am their brother"  : f ? "I am their sister"    : "I am their sibling" },
+        { value: "spouse",     label: m ? "Their husband"  : f ? "Their wife"      : "Their spouse",  desc: m ? "I am their husband"  : f ? "I am their wife"      : "I am their partner" },
+        { value: "step_parent",label: m ? "Their step-father" : f ? "Their step-mother" : "Their step-parent", desc: "Step relationship (not biological)" },
+      ],
+    },
+    {
+      key: "extended", emoji: "👪", label: "Extended Family",
+      subtitle: "Uncle · aunt · niece · nephew · cousin",
+      rels: [
+        { value: "uncle_aunt",   label: m ? "Their uncle"   : f ? "Their aunt"   : "Their uncle / aunt",   desc: "I am a sibling of their parent" },
+        { value: "niece_nephew", label: m ? "Their nephew"  : f ? "Their niece"  : "Their niece / nephew", desc: "I am a child of their sibling" },
+        { value: "cousin",       label: "Their 1st cousin",                                                 desc: "Our parents are siblings" },
+      ],
+    },
+    {
+      key: "distant", emoji: "🌐", label: "Distant Relative",
+      subtitle: "2nd cousin and beyond",
+      rels: [
+        { value: "2nd_cousin", label: "Their 2nd cousin",          desc: "Our grandparents are siblings" },
+        { value: "3rd_cousin", label: "Their 3rd cousin / distant", desc: "Our great-grandparents are siblings" },
+      ],
+    },
+  ];
+}
+
 export default function TreeMemberModal({
   member,
   familyId,
@@ -152,8 +189,15 @@ export default function TreeMemberModal({
   const [linkProfileId, setLinkProfileId] = useState("");
   const [linking, setLinking] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [connectRel, setConnectRel] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+
+  // Reset connect state when a different member is opened
+  useEffect(() => {
+    setConnectRel(null);
+    setOpenGroups(new Set());
+  }, [member?.id]);
   const [form, setForm] = useState({
     name: "",
     dob: "",
@@ -258,14 +302,14 @@ export default function TreeMemberModal({
   // Compute myMemberId before early return so handleConnect can close over it
   const myMemberId = treeData.members.find((m) => m.profile_id === currentUserId)?.id;
 
-  const handleConnect = async () => {
-    if (!member || !myMemberId || !connectRel) return;
+  const handleConnect = async (rel: string) => {
+    if (!member || !myMemberId) return;
     setConnecting(true);
     try {
-      await api.post(`/api/families/${familyId}/tree/relationships`, {
-        member_id: myMemberId,
-        related_member_id: member.id,
-        type: connectRel,
+      await api.post(`/api/families/${familyId}/tree/connect`, {
+        my_member_id: myMemberId,
+        target_member_id: member.id,
+        relationship: rel,
       });
       onRelAdded();
       setConnectRel(null);
@@ -514,54 +558,83 @@ export default function TreeMemberModal({
 
           {/* Add personal connection to this node */}
           {showConnect && (
-            <div className="flex flex-col gap-3 border-t border-border pt-4">
+            <div className="flex flex-col gap-2 border-t border-border pt-4">
               <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
                 How do you know {member.name.split(" ")[0]}?
               </span>
-              {connectRel ? (
-                <div className="flex flex-col gap-2">
-                  <p className="text-xs text-text-muted">
-                    Add yourself as their{" "}
-                    <span className="font-medium text-text">
-                      {connectRel === "parent" ? "parent"
-                        : connectRel === "child" ? "child"
-                        : connectRel === "sibling" ? "sibling"
-                        : connectRel === "spouse" ? "spouse"
-                        : "step-parent"}
-                    </span>?
-                  </p>
-                  <div className="flex gap-2">
-                    <Button onClick={handleConnect} loading={connecting} className="flex-1">
-                      Confirm
-                    </Button>
+              {getConnectCategories(member.gender).map((cat) => {
+                const isOpen = openGroups.has(cat.key);
+                return (
+                  <div key={cat.key} className="border border-border rounded-xl overflow-hidden">
+                    {/* Group header */}
                     <button
-                      onClick={() => setConnectRel(null)}
-                      className="px-3 py-2 rounded-xl border border-border text-sm text-text-muted hover:text-text transition-colors"
+                      onClick={() => {
+                        const next = new Set(openGroups);
+                        if (isOpen) next.delete(cat.key); else next.add(cat.key);
+                        setOpenGroups(next);
+                        if (connectRel) setConnectRel(null);
+                      }}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 bg-bg-3 hover:bg-bg-4 transition-colors text-left"
                     >
-                      Cancel
+                      <span className="text-base shrink-0">{cat.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-text leading-tight">{cat.label}</p>
+                        <p className="text-[11px] text-text-faint leading-tight">{cat.subtitle}</p>
+                      </div>
+                      {isOpen
+                        ? <ChevronDown size={14} className="text-text-muted shrink-0" />
+                        : <ChevronRight size={14} className="text-text-muted shrink-0" />}
                     </button>
+
+                    {/* Relations list */}
+                    {isOpen && (
+                      <div className="flex flex-col divide-y divide-border">
+                        {cat.rels.map((r) => {
+                          const isPending = connectRel === r.value;
+                          return (
+                            <div key={r.value} className="px-3 py-2 bg-bg-2">
+                              {isPending ? (
+                                <div className="flex flex-col gap-2">
+                                  <p className="text-xs text-text-muted">
+                                    Confirm: I am{" "}
+                                    <span className="font-medium text-text">{member.name.split(" ")[0]}&apos;s {r.label.toLowerCase().replace("their ", "")}</span>
+                                  </p>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      onClick={() => handleConnect(r.value)}
+                                      loading={connecting}
+                                      className="flex-1 py-1.5 text-xs"
+                                    >
+                                      <Check size={12} /> Yes, confirm
+                                    </Button>
+                                    <button
+                                      onClick={() => setConnectRel(null)}
+                                      className="px-3 py-1.5 rounded-xl border border-border text-xs text-text-muted hover:text-text transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setConnectRel(r.value)}
+                                  className="w-full flex items-center gap-2 text-left group"
+                                >
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium text-text group-hover:text-accent transition-colors">{r.label}</p>
+                                    <p className="text-[11px] text-text-faint">{r.desc}</p>
+                                  </div>
+                                  <ChevronRight size={12} className="text-text-faint shrink-0 group-hover:text-accent transition-colors" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { value: "child", label: "Their parent", desc: "I am their parent" },
-                    { value: "parent", label: "Their child", desc: "I am their child" },
-                    { value: "sibling", label: "Their sibling", desc: "Brother or sister" },
-                    { value: "spouse", label: "Their spouse", desc: "Husband or wife" },
-                    { value: "step_parent", label: "Their step-parent", desc: "Step relationship" },
-                  ].map((r) => (
-                    <button
-                      key={r.value}
-                      onClick={() => setConnectRel(r.value)}
-                      className="flex flex-col gap-0.5 p-3 bg-bg-3 hover:bg-bg-4 border border-border hover:border-accent/50 rounded-xl transition-all text-left"
-                    >
-                      <span className="text-xs font-semibold text-text">{r.label}</span>
-                      <span className="text-[11px] text-text-muted">{r.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                );
+              })}
             </div>
           )}
 
