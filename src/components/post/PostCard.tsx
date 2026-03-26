@@ -5,44 +5,54 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
+import Spinner from "@/components/ui/Spinner";
 import { formatDistanceToNow } from "date-fns";
 import type { Post } from "@/types";
+
+const CONTENT_LIMIT = 180;
+
+interface LikerProfile { id: string; name: string; avatar?: string }
 
 interface PostCardProps {
   post: Post;
   onDelete?: (postId: string) => void;
-  /** If true, clicking the card body navigates to the post detail page */
   navigable?: boolean;
-  /** Called when like is toggled so parent can update state */
   onLikeToggle?: (postId: string, liked: boolean, likeCount: number) => void;
 }
 
 export default function PostCard({ post, onDelete, navigable = true, onLikeToggle }: PostCardProps) {
   const { user } = useAuthStore();
   const router = useRouter();
+
   const [likedByMe, setLikedByMe] = useState(post.liked_by_me ?? false);
   const [likeCount, setLikeCount] = useState(post.like_count ?? 0);
   const [liking, setLiking] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  // Likers modal
+  const [likersOpen, setLikersOpen] = useState(false);
+  const [allLikers, setAllLikers] = useState<LikerProfile[]>([]);
+  const [loadingLikers, setLoadingLikers] = useState(false);
+
+  const isLong = post.content.length > CONTENT_LIMIT;
+  const displayContent = isLong && !expanded
+    ? post.content.slice(0, CONTENT_LIMIT).trimEnd() + "…"
+    : post.content;
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (liking) return;
-    // optimistic
     const newLiked = !likedByMe;
     const newCount = newLiked ? likeCount + 1 : likeCount - 1;
     setLikedByMe(newLiked);
     setLikeCount(newCount);
     setLiking(true);
     try {
-      const res = await api.post<{ liked: boolean; like_count: number }>(
-        `/api/posts/${post.id}/like`,
-        {}
-      );
+      const res = await api.post<{ liked: boolean; like_count: number }>(`/api/posts/${post.id}/like`, {});
       setLikedByMe(res.liked);
       setLikeCount(res.like_count);
       onLikeToggle?.(post.id, res.liked, res.like_count);
     } catch {
-      // revert
       setLikedByMe(!newLiked);
       setLikeCount(likeCount);
     } finally {
@@ -50,88 +60,182 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
     }
   };
 
-  const handleCardClick = () => {
-    if (navigable) router.push(`/post/${post.id}`);
+  const openLikers = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (likeCount === 0) return;
+    setLikersOpen(true);
+    if (allLikers.length === 0) {
+      setLoadingLikers(true);
+      try {
+        const data = await api.get<LikerProfile[]>(`/api/posts/${post.id}/likes`);
+        setAllLikers(data);
+      } finally {
+        setLoadingLikers(false);
+      }
+    }
   };
 
+  const media = post.media_urls ?? [];
+  const previewLikers = post.likers ?? [];
+
   return (
-    <div
-      className={`bg-bg-2 border border-border rounded-2xl overflow-hidden ${navigable ? "cursor-pointer hover:border-accent/40 transition-colors" : ""}`}
-      onClick={handleCardClick}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-3 px-4 pt-4 pb-2">
-        <button
-          onClick={(e) => { e.stopPropagation(); router.push(`/profile/${post.author_id}`); }}
-        >
-          <Avatar src={post.author?.avatar} name={post.author?.name} size={36} />
-        </button>
-        <div className="flex-1 min-w-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); router.push(`/profile/${post.author_id}`); }}
-            className="text-sm font-semibold text-text hover:text-accent transition-colors"
-          >
-            {post.author?.name ?? "Unknown"}
+    <>
+      <div
+        className={`bg-bg-2 border border-border rounded-2xl overflow-hidden ${navigable ? "cursor-pointer active:scale-[0.995] transition-transform" : ""}`}
+        onClick={() => navigable && router.push(`/post/${post.id}`)}
+      >
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 pt-4 pb-3">
+          <button onClick={(e) => { e.stopPropagation(); router.push(`/profile/${post.author_id}`); }}>
+            <Avatar src={post.author?.avatar} name={post.author?.name} size={36} />
           </button>
-          <p className="text-xs text-text-faint">
-            {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-          </p>
+          <div className="flex-1 min-w-0">
+            <button
+              onClick={(e) => { e.stopPropagation(); router.push(`/profile/${post.author_id}`); }}
+              className="text-sm font-semibold text-text hover:text-accent transition-colors leading-tight"
+            >
+              {post.author?.name ?? "Unknown"}
+            </button>
+            <p className="text-xs text-text-faint mt-0.5">
+              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+            </p>
+          </div>
+          {onDelete && post.author_id === user?.id && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(post.id); }}
+              className="p-1 text-text-faint hover:text-error transition-colors"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
-        {onDelete && post.author_id === user?.id && (
+
+        {/* Content with see more/less */}
+        <div className="px-4 pb-3" onClick={(e) => e.stopPropagation()}>
+          <p className="text-sm text-text whitespace-pre-wrap leading-relaxed">{displayContent}</p>
+          {isLong && (
+            <button
+              onClick={() => setExpanded((v) => !v)}
+              className="text-xs text-accent font-medium mt-1 hover:text-accent-hover transition-colors"
+            >
+              {expanded ? "see less" : "see more"}
+            </button>
+          )}
+        </div>
+
+        {/* Media — consistent 4:3 ratio */}
+        {media.length > 0 && (
+          <div className={`grid gap-0.5 ${media.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+            {media.slice(0, 4).map((url, i) => (
+              <div key={i} className={`relative overflow-hidden ${media.length === 1 ? "aspect-[4/3]" : "aspect-square"}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt="" className="w-full h-full object-cover" />
+                {i === 3 && media.length > 4 && (
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                    <span className="text-white font-bold text-xl">+{media.length - 4}</span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Likers row — stacked avatars + name summary */}
+        {likeCount > 0 && (
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete(post.id); }}
-            className="p-1 text-text-faint hover:text-error transition-colors"
+            onClick={openLikers}
+            className="flex items-center gap-2 px-4 pt-3 pb-1 w-full text-left hover:opacity-80 transition-opacity"
           >
-            <X size={14} />
+            {/* Stacked avatars */}
+            <div className="flex -space-x-2">
+              {previewLikers.slice(0, 3).map((liker) => (
+                <div key={liker.id} className="w-5 h-5 rounded-full ring-2 ring-bg-2 overflow-hidden shrink-0">
+                  <Avatar src={liker.avatar} name={liker.name} size={20} />
+                </div>
+              ))}
+            </div>
+            {/* Like summary text */}
+            <span className="text-xs text-text-muted">
+              {likeCount === 1
+                ? `Liked by ${previewLikers[0]?.name ?? "1 person"}`
+                : previewLikers[0]
+                ? `Liked by ${previewLikers[0].name} and ${likeCount - 1} other${likeCount - 1 > 1 ? "s" : ""}`
+                : `${likeCount} likes`}
+            </span>
           </button>
         )}
+
+        {/* Actions row */}
+        <div className="flex items-center gap-1 px-3 py-2 border-t border-border/50 mt-2">
+          <button
+            onClick={handleLike}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-bg-3 transition-colors group flex-1 justify-center"
+          >
+            <Heart
+              size={17}
+              className={likedByMe ? "fill-red-500 text-red-500" : "text-text-faint group-hover:text-red-400 transition-colors"}
+              strokeWidth={likedByMe ? 0 : 2}
+            />
+            <span className={`text-xs font-medium ${likedByMe ? "text-red-500" : "text-text-faint"}`}>
+              Like{likeCount > 0 ? ` · ${likeCount}` : ""}
+            </span>
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); if (navigable) router.push(`/post/${post.id}#comments`); else document.getElementById("comment-input")?.focus(); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-bg-3 text-text-faint hover:text-text transition-colors flex-1 justify-center"
+          >
+            <MessageCircle size={17} strokeWidth={2} />
+            <span className="text-xs font-medium">
+              Comment{(post.comment_count ?? 0) > 0 ? ` · ${post.comment_count}` : ""}
+            </span>
+          </button>
+        </div>
       </div>
 
-      {/* Content */}
-      <p className="text-sm text-text px-4 pb-3 whitespace-pre-wrap leading-relaxed">{post.content}</p>
-
-      {/* Media */}
-      {(post.media_urls ?? []).length > 0 && (
-        <div className={`grid gap-0.5 ${post.media_urls.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
-          {post.media_urls.slice(0, 4).map((url, i) => (
-            <div key={i} className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt="" className={`w-full object-cover ${post.media_urls.length === 1 ? "max-h-80" : "h-44"}`} />
-              {i === 3 && post.media_urls.length > 4 && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <span className="text-white font-semibold text-lg">+{post.media_urls.length - 4}</span>
-                </div>
+      {/* Likers modal */}
+      {likersOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+          onClick={() => setLikersOpen(false)}
+        >
+          <div
+            className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 bg-border rounded-full" />
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <h2 className="text-sm font-semibold text-text">{likeCount} Like{likeCount !== 1 ? "s" : ""}</h2>
+              <button onClick={() => setLikersOpen(false)} className="p-1 text-text-faint hover:text-text">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="overflow-y-auto max-h-72 py-2">
+              {loadingLikers ? (
+                <div className="flex justify-center py-8"><Spinner /></div>
+              ) : allLikers.length === 0 ? (
+                <p className="text-center text-text-muted text-sm py-8">No likes yet.</p>
+              ) : (
+                allLikers.map((liker) => (
+                  <button
+                    key={liker.id}
+                    onClick={() => { setLikersOpen(false); router.push(`/profile/${liker.id}`); }}
+                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-bg-2 transition-colors"
+                  >
+                    <Avatar src={liker.avatar} name={liker.name} size={40} />
+                    <p className="text-sm font-medium text-text">{liker.name}</p>
+                    <Heart size={14} className="ml-auto fill-red-500 text-red-500" strokeWidth={0} />
+                  </button>
+                ))
               )}
             </div>
-          ))}
+            {/* safe area bottom padding */}
+            <div className="pb-6" />
+          </div>
         </div>
       )}
-
-      {/* Actions */}
-      <div className="flex items-center gap-4 px-4 py-3">
-        <button
-          onClick={handleLike}
-          className="flex items-center gap-1.5 transition-colors group"
-        >
-          <Heart
-            size={18}
-            className={likedByMe ? "fill-red-500 text-red-500" : "text-text-faint group-hover:text-red-400 transition-colors"}
-            strokeWidth={likedByMe ? 0 : 1.8}
-          />
-          <span className={`text-xs font-medium ${likedByMe ? "text-red-500" : "text-text-faint"}`}>
-            {likeCount > 0 ? likeCount : ""}
-          </span>
-        </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); if (navigable) router.push(`/post/${post.id}#comments`); }}
-          className="flex items-center gap-1.5 text-text-faint hover:text-text transition-colors"
-        >
-          <MessageCircle size={18} strokeWidth={1.8} />
-          <span className="text-xs font-medium">
-            {(post.comment_count ?? 0) > 0 ? post.comment_count : ""}
-          </span>
-        </button>
-      </div>
-    </div>
+    </>
   );
 }

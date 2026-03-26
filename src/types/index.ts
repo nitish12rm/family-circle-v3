@@ -61,6 +61,7 @@ export interface Post {
   like_count?: number;
   comment_count?: number;
   liked_by_me?: boolean;
+  likers?: { id: string; name: string; avatar?: string }[];
 }
 
 export interface PostComment {

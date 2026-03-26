@@ -39,9 +39,12 @@ export async function GET(
 
     const likeCountMap: Record<string, number> = {};
     const likedByMeMap: Record<string, boolean> = {};
+    const likerIdsPerPost: Record<string, string[]> = {};
     for (const like of allLikes) {
       likeCountMap[like.post_id] = (likeCountMap[like.post_id] ?? 0) + 1;
       if (like.user_id === userId) likedByMeMap[like.post_id] = true;
+      if (!likerIdsPerPost[like.post_id]) likerIdsPerPost[like.post_id] = [];
+      if (likerIdsPerPost[like.post_id].length < 3) likerIdsPerPost[like.post_id].push(like.user_id);
     }
 
     const commentCountMap: Record<string, number> = {};
@@ -49,9 +52,20 @@ export async function GET(
       commentCountMap[c.post_id] = (commentCountMap[c.post_id] ?? 0) + 1;
     }
 
+    // Fetch profiles for preview likers
+    const previewLikerIds = [...new Set(Object.values(likerIdsPerPost).flat())];
+    const likerProfiles = previewLikerIds.length
+      ? await Profile.find({ _id: { $in: previewLikerIds } }).select("_id name avatar").lean() as { _id: string; name: string; avatar?: string }[]
+      : [];
+    const likerProfileMap = Object.fromEntries(likerProfiles.map((p) => [p._id, p]));
+
     return NextResponse.json(
       posts.map((p) => {
         const a = authorMap[p.author_id];
+        const likers = (likerIdsPerPost[p._id] ?? []).map((id) => {
+          const lp = likerProfileMap[id];
+          return lp ? { id: lp._id, name: lp.name, avatar: lp.avatar } : null;
+        }).filter(Boolean);
         return {
           id: p._id,
           family_id: p.family_id,
@@ -62,6 +76,7 @@ export async function GET(
           like_count: likeCountMap[p._id] ?? 0,
           comment_count: commentCountMap[p._id] ?? 0,
           liked_by_me: likedByMeMap[p._id] ?? false,
+          likers,
           author: a ? { id: a._id, name: a.name, avatar: a.avatar } : null,
         };
       })
