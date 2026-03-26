@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Upload, FileText, Trash2, Download, X } from "lucide-react";
+import { Upload, FileText, Trash2, Download, X, Eye, Lock, Globe, ChevronDown } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -9,13 +9,24 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { Input, Textarea } from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
+import DocPreviewModal from "@/components/documents/DocPreviewModal";
+import { compressImage } from "@/lib/imageCompression";
 import { formatDistanceToNow } from "date-fns";
 import type { Document } from "@/types";
+import { DOCUMENT_CATEGORIES } from "@/types";
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileIcon(mimeType: string) {
+  if (mimeType.startsWith("image/")) return "🖼️";
+  if (mimeType === "application/pdf") return "📄";
+  if (mimeType.includes("word")) return "📝";
+  if (mimeType.includes("sheet") || mimeType.includes("excel")) return "📊";
+  return "📎";
 }
 
 export default function DocumentsView() {
@@ -28,7 +39,19 @@ export default function DocumentsView() {
   const [file, setFile] = useState<File | null>(null);
   const [docName, setDocName] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState<string>("Other");
+  const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [uploading, setUploading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+
+  const resetForm = () => {
+    setFile(null);
+    setDocName("");
+    setDescription("");
+    setCategory("Other");
+    setVisibility("private");
+  };
 
   const loadDocs = useCallback(async () => {
     if (!activeFamilyId) return;
@@ -49,24 +72,30 @@ export default function DocumentsView() {
     loadDocs();
   }, [loadDocs]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setFile(f);
-    if (!docName) setDocName(f.name);
+    if (f.type.startsWith("image/") && f.type !== "image/gif") {
+      setCompressing(true);
+      const compressed = await compressImage(f);
+      setFile(compressed);
+      if (!docName) setDocName(compressed.name.replace(/\.[^.]+$/, ""));
+      setCompressing(false);
+    } else {
+      setFile(f);
+      if (!docName) setDocName(f.name.replace(/\.[^.]+$/, ""));
+    }
   };
 
   const handleUpload = async () => {
     if (!file || !activeFamilyId) return;
     setUploading(true);
     try {
-      // Upload to Cloudinary
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folder", "family-circle-v3/documents");
       const { url } = await api.upload<{ url: string }>("/api/upload", formData);
 
-      // Save metadata
       const doc = await api.post<Document>(
         `/api/families/${activeFamilyId}/documents`,
         {
@@ -75,13 +104,13 @@ export default function DocumentsView() {
           file_size: file.size,
           mime_type: file.type,
           description,
+          category,
+          visibility,
         }
       );
       setDocs((prev) => [doc, ...prev]);
       setUploadOpen(false);
-      setFile(null);
-      setDocName("");
-      setDescription("");
+      resetForm();
       showToast("Document uploaded!", "success");
     } catch {
       showToast("Failed to upload document", "error");
@@ -134,31 +163,46 @@ export default function DocumentsView() {
               key={doc.id}
               className="bg-bg-2 border border-border rounded-2xl p-4 flex items-center gap-3"
             >
-              <div className="w-10 h-10 bg-bg-3 rounded-xl flex items-center justify-center shrink-0">
-                <FileText size={18} className="text-text-muted" />
+              <div className="w-10 h-10 bg-bg-3 rounded-xl flex items-center justify-center shrink-0 text-lg">
+                {fileIcon(doc.mime_type)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text truncate">
-                  {doc.name}
-                </p>
+                <p className="text-sm font-medium text-text truncate">{doc.name}</p>
+                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                  <span className="text-xs bg-bg-3 text-text-muted px-1.5 py-0.5 rounded-md">
+                    {doc.category}
+                  </span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
+                    doc.visibility === "public"
+                      ? "bg-green-500/10 text-green-400"
+                      : "bg-bg-3 text-text-faint"
+                  }`}>
+                    {doc.visibility === "public" ? <Globe size={10} /> : <Lock size={10} />}
+                    {doc.visibility}
+                  </span>
+                </div>
                 <p className="text-xs text-text-muted mt-0.5">
                   {formatBytes(doc.file_size)} ·{" "}
-                  {formatDistanceToNow(new Date(doc.created_at), {
-                    addSuffix: true,
-                  })}
+                  {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
                 </p>
                 {doc.description && (
-                  <p className="text-xs text-text-faint mt-1 truncate">
-                    {doc.description}
-                  </p>
+                  <p className="text-xs text-text-faint mt-1 truncate">{doc.description}</p>
                 )}
               </div>
-              <div className="flex gap-1">
+              <div className="flex gap-1 shrink-0">
+                <button
+                  onClick={() => setPreviewDoc(doc)}
+                  className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
+                  title="Preview"
+                >
+                  <Eye size={14} />
+                </button>
                 <a
                   href={doc.file_path}
                   target="_blank"
                   rel="noreferrer"
                   className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
+                  title="Download"
                 >
                   <Download size={14} />
                 </a>
@@ -166,6 +210,7 @@ export default function DocumentsView() {
                   <button
                     onClick={() => handleDelete(doc.id)}
                     className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
+                    title="Delete"
                   >
                     <Trash2 size={14} />
                   </button>
@@ -179,29 +224,27 @@ export default function DocumentsView() {
       {/* Upload modal */}
       <Modal
         open={uploadOpen}
-        onClose={() => {
-          setUploadOpen(false);
-          setFile(null);
-          setDocName("");
-          setDescription("");
-        }}
+        onClose={() => { setUploadOpen(false); resetForm(); }}
         title="Upload Document"
       >
         <div className="flex flex-col gap-4">
+          {/* File drop zone */}
           <div
             className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-accent transition-colors"
             onClick={() => document.getElementById("doc-file-input")?.click()}
           >
-            {file ? (
+            {compressing ? (
               <div className="flex items-center justify-center gap-2">
-                <FileText size={16} className="text-accent" />
+                <Spinner size={16} />
+                <span className="text-sm text-text-muted">Compressing image…</span>
+              </div>
+            ) : file ? (
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-lg">{fileIcon(file.type)}</span>
                 <span className="text-sm text-text">{file.name}</span>
+                <span className="text-xs text-text-faint">({formatBytes(file.size)})</span>
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFile(null);
-                    setDocName("");
-                  }}
+                  onClick={(e) => { e.stopPropagation(); setFile(null); setDocName(""); }}
                   className="text-text-muted hover:text-error"
                 >
                   <X size={14} />
@@ -210,9 +253,8 @@ export default function DocumentsView() {
             ) : (
               <>
                 <Upload size={24} className="mx-auto text-text-faint mb-2" />
-                <p className="text-sm text-text-muted">
-                  Click to select a file
-                </p>
+                <p className="text-sm text-text-muted">Click to select a file</p>
+                <p className="text-xs text-text-faint mt-1">Images will be automatically compressed</p>
               </>
             )}
           </div>
@@ -222,12 +264,65 @@ export default function DocumentsView() {
             className="hidden"
             onChange={handleFileSelect}
           />
+
           <Input
             label="Document Name"
-            placeholder="My Document"
+            placeholder="e.g. My Aadhaar Card"
             value={docName}
             onChange={(e) => setDocName(e.target.value)}
           />
+
+          {/* Category selector */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-text-muted">Category</label>
+            <div className="relative">
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full bg-bg-2 border border-border rounded-xl px-3 py-2.5 text-sm text-text appearance-none pr-8 focus:outline-none focus:ring-2 focus:ring-accent/40"
+              >
+                {DOCUMENT_CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Visibility toggle */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-text-muted">Visibility</label>
+            <div className="flex rounded-xl border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setVisibility("private")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${
+                  visibility === "private"
+                    ? "bg-bg-3 text-text"
+                    : "bg-bg-2 text-text-muted hover:bg-bg-3"
+                }`}
+              >
+                <Lock size={13} /> Private
+              </button>
+              <button
+                type="button"
+                onClick={() => setVisibility("public")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${
+                  visibility === "public"
+                    ? "bg-green-500/15 text-green-400"
+                    : "bg-bg-2 text-text-muted hover:bg-bg-3"
+                }`}
+              >
+                <Globe size={13} /> Public
+              </button>
+            </div>
+            <p className="text-xs text-text-faint">
+              {visibility === "public"
+                ? "Visible to family members on your profile"
+                : "Only visible to you"}
+            </p>
+          </div>
+
           <Textarea
             label="Description (optional)"
             placeholder="What is this document about?"
@@ -235,16 +330,23 @@ export default function DocumentsView() {
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
           />
+
           <Button
             onClick={handleUpload}
             loading={uploading}
-            disabled={!file}
+            disabled={!file || compressing}
             className="w-full"
           >
             Upload
           </Button>
         </div>
       </Modal>
+
+      {/* Preview modal */}
+      <DocPreviewModal
+        doc={previewDoc}
+        onClose={() => setPreviewDoc(null)}
+      />
     </div>
   );
 }
