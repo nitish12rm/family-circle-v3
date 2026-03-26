@@ -10,7 +10,15 @@ import {
 } from "react";
 import { Plus, ZoomIn, ZoomOut, Maximize2, Save } from "lucide-react";
 import getExtendedFamily from "relatives-tree";
-import type { Node as RelNode } from "relatives-tree";
+
+interface RelNode {
+  id: string;
+  gender: "male" | "female";
+  parents?: { id: string; type: string }[];
+  siblings?: { id: string; type: string }[];
+  spouses?: { id: string; type: string }[];
+  children?: { id: string; type: string }[];
+}
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
