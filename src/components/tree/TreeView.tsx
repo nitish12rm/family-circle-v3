@@ -400,16 +400,16 @@ export default function TreeView() {
         >
           {/* Relationship lines */}
           {treeData.relationships
-            .filter((r) => r.type === "child" || r.type === "spouse")
+            .filter((r) => r.type === "parent" || r.type === "spouse")
             .map((rel) => {
               const from = posMap.get(rel.member_id);
               const to = posMap.get(rel.related_member_id);
               if (!from || !to) return null;
+              // parent→child: from = parent (top), to = child (bottom)
               const x1 = from.x + NODE_W / 2;
-              const y1 = from.y + NODE_H;
+              const y1 = from.y + NODE_H;        // parent's bottom edge
               const x2 = to.x + NODE_W / 2;
-              const y2 = to.y;
-              const mx = (x1 + x2) / 2;
+              const y2 = to.y;                   // child's top edge
               const my = (y1 + y2) / 2;
 
               if (rel.type === "spouse") {
