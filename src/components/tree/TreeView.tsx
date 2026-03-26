@@ -348,7 +348,6 @@ export default function TreeView() {
       }
       setFamilyMembers(members);
       setTreeData(data);
-      const myNode = user?.id ? data.members.find((m) => m.profile_id === user.id) : undefined;
       const pos = buildLayout(data.members, data.relationships);
       setPositions(pos);
 
