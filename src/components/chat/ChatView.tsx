@@ -98,14 +98,17 @@ export default function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full max-w-xl mx-auto">
+    <div
+      className="flex flex-col max-w-xl mx-auto overflow-hidden"
+      style={{ height: "calc(100dvh - 136px)" }}
+    >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border">
+      <div className="px-4 py-3 border-b border-border shrink-0">
         <h1 className="text-lg font-semibold text-text">Family Chat</h1>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+      {/* Messages — only this section scrolls */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3">
         {loading ? (
           <div className="flex justify-center py-10">
             <Spinner />
@@ -159,8 +162,8 @@ export default function ChatView() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="px-4 py-3 border-t border-border">
+      {/* Input — always pinned to bottom */}
+      <div className="px-4 py-3 border-t border-border shrink-0">
         <div className="flex gap-2 items-end">
           <textarea
             value={content}
