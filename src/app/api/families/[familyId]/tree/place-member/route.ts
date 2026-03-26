@@ -101,12 +101,28 @@ export async function POST(
         family_id: familyId, member_id: anchorId, type: "spouse",
       }).lean() as unknown as { related_member_id: string } | null;
 
+      let coParentId: string;
       if (spouseRel) {
-        addRel(spouseRel.related_member_id, newMemberId, "parent");
+        coParentId = spouseRel.related_member_id;
+        addRel(coParentId, newMemberId, "parent");
       } else {
         const phId = addPlaceholder("Unknown Parent");
         addRel(anchorId, phId, "spouse");
         addRel(phId, newMemberId, "parent");
+        coParentId = phId;
+      }
+
+      // Auto-create sibling rels with all existing children of anchor (and co-parent)
+      const parentIds = [anchorId, coParentId];
+      const existingChildIds = new Set<string>();
+      for (const pid of parentIds) {
+        const childRels = await TreeRelationship.find({
+          family_id: familyId, member_id: pid, type: "parent",
+        }).lean() as unknown as { related_member_id: string }[];
+        for (const cr of childRels) existingChildIds.add(cr.related_member_id);
+      }
+      for (const sibId of existingChildIds) {
+        if (sibId !== newMemberId) addRel(newMemberId, sibId, "sibling");
       }
 
     // ── PARENT: user is parent of anchor ─────────────────────────────────────
@@ -130,6 +146,14 @@ export async function POST(
     // ── SIBLING: user is sibling of anchor ───────────────────────────────────
     } else if (relationship === "sibling") {
       addRel(newMemberId, anchorId, "sibling");
+
+      // Also become sibling of all anchor's existing siblings
+      const anchorSiblingRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "sibling",
+      }).lean() as unknown as { related_member_id: string }[];
+      for (const sr of anchorSiblingRels) {
+        addRel(newMemberId, sr.related_member_id, "sibling");
+      }
 
       const parentRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "child",
