@@ -6,6 +6,7 @@ import { Profile } from "@/models/Profile";
 import { Like } from "@/models/Like";
 import { Comment } from "@/models/Comment";
 import { randomUUID } from "crypto";
+import { deleteAllFromCloudinary } from "@/lib/cloudinaryDelete";
 
 export async function GET(
   req: NextRequest,
@@ -143,7 +144,9 @@ export async function DELETE(req: NextRequest) {
     if (post.author_id !== userId)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    const mediaUrls: string[] = Array.isArray(post.media_urls) ? post.media_urls : [];
     await post.deleteOne();
+    void deleteAllFromCloudinary(mediaUrls);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

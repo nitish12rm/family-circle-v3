@@ -9,6 +9,7 @@ import { Like } from "@/models/Like";
 import { Document } from "@/models/Document";
 import { Message } from "@/models/Message";
 import { FamilyInvite } from "@/models/FamilyInvite";
+import { deleteAllFromCloudinary } from "@/lib/cloudinaryDelete";
 
 export async function DELETE(
   req: NextRequest,
@@ -24,7 +25,18 @@ export async function DELETE(
       return NextResponse.json({ error: "Only admins can delete a family" }, { status: 403 });
     }
 
-    // Delete family and all related data
+    // Collect all Cloudinary assets before deleting records
+    const [posts, documents] = await Promise.all([
+      Post.find({ family_id: familyId }).select("media_urls").lean() as Promise<{ media_urls?: string[] }[]>,
+      Document.find({ family_id: familyId }).select("file_path").lean() as Promise<{ file_path: string }[]>,
+    ]);
+
+    const cloudinaryUrls = [
+      ...posts.flatMap((p) => p.media_urls ?? []),
+      ...documents.map((d) => d.file_path),
+    ];
+
+    // Delete MongoDB records
     await Promise.all([
       Family.deleteOne({ _id: familyId }),
       FamilyMember.deleteMany({ family_id: familyId }),
@@ -33,11 +45,11 @@ export async function DELETE(
       Document.deleteMany({ family_id: familyId }),
       Message.deleteMany({ family_id: familyId }),
       FamilyInvite.deleteMany({ family_id: familyId }),
+      Like.deleteMany({ post_id: { $in: posts.map((p: Record<string, unknown>) => (p as { _id: string })._id) } }),
     ]);
 
-    // Clean up orphaned likes for deleted posts
-    const remainingPostIds = await Post.find({}).distinct("_id");
-    await Like.deleteMany({ post_id: { $nin: remainingPostIds } });
+    // Delete Cloudinary assets — fire and forget, don't block response
+    void deleteAllFromCloudinary(cloudinaryUrls);
 
     return NextResponse.json({ ok: true });
   } catch {

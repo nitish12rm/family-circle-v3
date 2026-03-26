@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { Document } from "@/models/Document";
 import { randomUUID } from "crypto";
+import { deleteFromCloudinary } from "@/lib/cloudinaryDelete";
 
 export async function GET(
   req: NextRequest,
@@ -100,7 +101,9 @@ export async function DELETE(req: NextRequest) {
     if (doc.uploaded_by !== userId)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    const fileUrl: string = doc.file_path;
     await doc.deleteOne();
+    void deleteFromCloudinary(fileUrl);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
