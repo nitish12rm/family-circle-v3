@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Upload, FileText, Trash2, Download, X, Eye, Lock, Globe, ChevronDown, Search } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
@@ -49,6 +49,7 @@ export default function DocumentsView() {
   const [uploading, setUploading] = useState(false);
   const [compressing, setCompressing] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = () => {
     setFile(null);
@@ -56,6 +57,7 @@ export default function DocumentsView() {
     setDescription("");
     setCategory("Other");
     setVisibility("private");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const loadDocs = useCallback(async () => {
@@ -328,7 +330,7 @@ export default function DocumentsView() {
                 <span className="text-sm text-text">{file.name}</span>
                 <span className="text-xs text-text-faint">({formatBytes(file.size)})</span>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setFile(null); setDocName(""); }}
+                  onClick={(e) => { e.stopPropagation(); setFile(null); setDocName(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
                   className="text-text-muted hover:text-error"
                 >
                   <X size={14} />
@@ -342,7 +344,7 @@ export default function DocumentsView() {
               </>
             )}
           </div>
-          <input id="doc-file-input" type="file" className="hidden" onChange={handleFileSelect} />
+          <input ref={fileInputRef} id="doc-file-input" type="file" className="hidden" onChange={handleFileSelect} />
 
           <Input
             label="Document Name"
