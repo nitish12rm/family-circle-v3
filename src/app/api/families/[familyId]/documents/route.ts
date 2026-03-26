@@ -73,6 +73,7 @@ export async function POST(
     return NextResponse.json({
       id: doc._id,
       family_id: doc.family_id,
+      uploaded_by: doc.uploaded_by,
       name: doc.name,
       file_path: doc.file_path,
       file_size: doc.file_size,
