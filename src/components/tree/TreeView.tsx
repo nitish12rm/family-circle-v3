@@ -8,7 +8,7 @@ import {
   WheelEvent,
   TouchEvent,
 } from "react";
-import { Plus, ZoomIn, ZoomOut, Maximize2, X, Save } from "lucide-react";
+import { Plus, ZoomIn, ZoomOut, Maximize2, Save } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -18,6 +18,7 @@ import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
 import PlaceMemberModal from "@/components/tree/PlaceMemberModal";
+import TreeMemberModal from "@/components/tree/TreeMemberModal";
 import type { TreeMember, TreeRelationship } from "@/types";
 
 interface TreeData {
@@ -467,38 +468,29 @@ export default function TreeView() {
         </svg>
       )}
 
-      {/* Selected member panel */}
-      {selectedMember && (
-        <div className="absolute bottom-3 left-3 right-3 bg-bg-2 border border-border rounded-2xl p-4 shadow-card animate-slide-up">
-          <div className="flex items-start justify-between">
-            <div>
-              <h3 className="font-semibold text-text">{selectedMember.name}</h3>
-              {selectedMember.dob && (
-                <p className="text-xs text-text-muted mt-0.5">Born: {selectedMember.dob}</p>
-              )}
-              {selectedMember.status && (
-                <p className="text-xs text-text-muted">{selectedMember.status}</p>
-              )}
-              {selectedMember.notes && (
-                <p className="text-xs text-text-faint mt-1">{selectedMember.notes}</p>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => handleDeleteMember(selectedMember.id)}
-                className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
-              >
-                <X size={14} />
-              </button>
-              <button
-                onClick={() => setSelectedMember(null)}
-                className="p-2 rounded-lg hover:bg-bg-3 text-text-muted transition-colors"
-              >
-                <X size={14} />
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Member detail modal */}
+      {activeFamilyId && (
+        <TreeMemberModal
+          member={selectedMember}
+          familyId={activeFamilyId}
+          treeData={treeData}
+          onClose={() => setSelectedMember(null)}
+          onDelete={(id) => {
+            handleDeleteMember(id);
+            setSelectedMember(null);
+          }}
+          onUpdated={(updated) => {
+            const newData = {
+              ...treeData,
+              members: treeData.members.map((m) =>
+                m.id === updated.id ? { ...m, ...updated } : m
+              ),
+            };
+            setTreeData(newData);
+            setPositions(buildLayout(newData.members, newData.relationships));
+            setSelectedMember((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+          }}
+        />
       )}
 
       {/* Add member modal */}
