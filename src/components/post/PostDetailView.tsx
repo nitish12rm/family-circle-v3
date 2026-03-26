@@ -91,6 +91,9 @@ export default function PostDetailView({ postId }: { postId: string }) {
               // silent — toast handled by FeedView when coming from there
             }
           }}
+          onEdit={(_, content, mediaUrls) =>
+            setPost((p) => p ? { ...p, content, media_urls: mediaUrls } : p)
+          }
           onLikeToggle={(_, liked, count) =>
             setPost((p) => p ? { ...p, liked_by_me: liked, like_count: count } : p)
           }
