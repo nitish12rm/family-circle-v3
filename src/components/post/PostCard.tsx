@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
-import { Heart, MessageCircle, X, Send } from "lucide-react";
+import { Heart, MessageCircle, X, Send, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/lib/api";
@@ -34,6 +34,9 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
   const [allLikers, setAllLikers] = useState<LikerProfile[]>([]);
   const [loadingLikers, setLoadingLikers] = useState(false);
 
+  // Post delete confirm
+  const [deletePostOpen, setDeletePostOpen] = useState(false);
+
   // Comments sheet
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -41,6 +44,7 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
   const [commentText, setCommentText] = useState("");
   const [sendingComment, setSendingComment] = useState(false);
   const [commentCount, setCommentCount] = useState(post.comment_count ?? 0);
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const isLong = post.content.length > CONTENT_LIMIT;
@@ -113,6 +117,18 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
     }
   };
 
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await api.delete(`/api/posts/${post.id}/comments?commentId=${commentId}`);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+      setCommentCount((n) => Math.max(0, n - 1));
+    } catch {
+      // silent fail
+    } finally {
+      setDeleteCommentId(null);
+    }
+  };
+
   const media = post.media_urls ?? [];
   const previewLikers = post.likers ?? [];
 
@@ -140,7 +156,7 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
           </div>
           {onDelete && post.author_id === user?.id && (
             <button
-              onClick={(e) => { e.stopPropagation(); onDelete(post.id); }}
+              onClick={(e) => { e.stopPropagation(); setDeletePostOpen(true); }}
               className="p-1 text-text-faint hover:text-error transition-colors"
             >
               <X size={14} />
@@ -277,6 +293,14 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
                       </div>
                       <p className="text-sm text-text mt-0.5 whitespace-pre-wrap leading-relaxed">{c.content}</p>
                     </div>
+                    {c.author_id === user?.id && (
+                      <button
+                        onClick={() => setDeleteCommentId(c.id)}
+                        className="p-1.5 text-text-faint hover:text-error transition-colors shrink-0 mt-0.5"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
                   </div>
                 ))
               )}
@@ -347,6 +371,54 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
             </div>
             {/* safe area bottom padding */}
             <div className="pb-6" />
+          </div>
+        </div>
+      )}
+
+      {/* Delete post confirmation */}
+      {deletePostOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6" onClick={() => setDeletePostOpen(false)}>
+          <div className="bg-bg rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-text mb-1">Delete post?</h3>
+            <p className="text-xs text-text-muted mb-4">This cannot be undone.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeletePostOpen(false)}
+                className="flex-1 py-2 rounded-xl border border-border text-sm text-text-muted hover:bg-bg-2 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setDeletePostOpen(false); onDelete?.(post.id); }}
+                className="flex-1 py-2 rounded-xl bg-error text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete comment confirmation */}
+      {deleteCommentId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6" onClick={() => setDeleteCommentId(null)}>
+          <div className="bg-bg rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-text mb-1">Delete comment?</h3>
+            <p className="text-xs text-text-muted mb-4">This cannot be undone.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteCommentId(null)}
+                className="flex-1 py-2 rounded-xl border border-border text-sm text-text-muted hover:bg-bg-2 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteComment(deleteCommentId)}
+                className="flex-1 py-2 rounded-xl bg-error text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Copy, Check, UserPlus, Trash2, Users, ChevronRight } from "lucide-react";
+import { Plus, Copy, Check, UserPlus, Trash2, Users, ChevronRight, LogOut } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -15,7 +15,7 @@ import PlaceMemberModal from "@/components/tree/PlaceMemberModal";
 import type { FamilyMember, FamilyInvite, Family } from "@/types";
 
 export default function FamilyView() {
-  const { activeFamilyId, families, addFamily, setFamilies } = useFamilyStore();
+  const { activeFamilyId, families, addFamily, setFamilies, removeFamily } = useFamilyStore();
   const { user } = useAuthStore();
   const { showToast } = useUIStore();
   const router = useRouter();
@@ -30,6 +30,12 @@ export default function FamilyView() {
   const [joining, setJoining] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [placementFamilyId, setPlacementFamilyId] = useState<string | null>(null);
+
+  // Leave / delete confirmation
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [actioning, setActioning] = useState(false);
 
   const appUrl =
     typeof window !== "undefined" ? window.location.origin : "";
@@ -128,6 +134,38 @@ export default function FamilyView() {
     showToast("Link copied!", "success");
   };
 
+  const handleLeaveFamily = async () => {
+    if (!activeFamilyId || confirmText !== "leave") return;
+    setActioning(true);
+    try {
+      await api.delete(`/api/families/${activeFamilyId}/members`);
+      removeFamily(activeFamilyId);
+      setLeaveOpen(false);
+      setConfirmText("");
+      showToast("You left the family", "info");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Failed to leave", "error");
+    } finally {
+      setActioning(false);
+    }
+  };
+
+  const handleDeleteFamily = async () => {
+    if (!activeFamilyId || confirmText !== "delete") return;
+    setActioning(true);
+    try {
+      await api.delete(`/api/families/${activeFamilyId}`);
+      removeFamily(activeFamilyId);
+      setDeleteOpen(false);
+      setConfirmText("");
+      showToast("Family deleted", "info");
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Failed to delete", "error");
+    } finally {
+      setActioning(false);
+    }
+  };
+
   const activeFamily = families.find((f) => f.id === activeFamilyId);
 
   return (
@@ -156,21 +194,39 @@ export default function FamilyView() {
       ) : (
         <>
           {/* Current family */}
-          {activeFamily && (
-            <div className="bg-bg-2 border border-border rounded-2xl p-4 mb-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-accent-muted border border-accent/30 rounded-xl flex items-center justify-center">
-                  <Users size={18} className="text-accent" />
-                </div>
-                <div>
-                  <p className="font-medium text-text">{activeFamily.name}</p>
-                  <p className="text-xs text-text-muted">
-                    {members.length} member{members.length !== 1 ? "s" : ""}
-                  </p>
+          {activeFamily && (() => {
+            const myRole = members.find((m) => m.user_id === user?.id)?.role;
+            return (
+              <div className="bg-bg-2 border border-border rounded-2xl p-4 mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-accent-muted border border-accent/30 rounded-xl flex items-center justify-center shrink-0">
+                    <Users size={18} className="text-accent" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-text">{activeFamily.name}</p>
+                    <p className="text-xs text-text-muted">
+                      {members.length} member{members.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  {myRole === "admin" ? (
+                    <button
+                      onClick={() => { setConfirmText(""); setDeleteOpen(true); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-error hover:bg-error/10 transition-colors"
+                    >
+                      <Trash2 size={13} /> Delete
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setConfirmText(""); setLeaveOpen(true); }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium text-text-muted hover:bg-bg-3 transition-colors"
+                    >
+                      <LogOut size={13} /> Leave
+                    </button>
+                  )}
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Members */}
           <div className="bg-bg-2 border border-border rounded-2xl mb-4">
@@ -299,6 +355,52 @@ export default function FamilyView() {
           />
           <Button onClick={handleJoinFamily} loading={joining} className="w-full">
             Join
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Leave family modal */}
+      <Modal open={leaveOpen} onClose={() => setLeaveOpen(false)} title="Leave Family">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-text-muted">
+            You will lose access to this family&apos;s posts, documents, and chat.
+            Type <span className="font-semibold text-text">leave</span> to confirm.
+          </p>
+          <Input
+            placeholder="Type leave to confirm"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+          />
+          <Button
+            onClick={handleLeaveFamily}
+            loading={actioning}
+            disabled={confirmText !== "leave"}
+            className="w-full !bg-error hover:!bg-error/90"
+          >
+            Leave Family
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Delete family modal */}
+      <Modal open={deleteOpen} onClose={() => setDeleteOpen(false)} title="Delete Family">
+        <div className="flex flex-col gap-4">
+          <p className="text-sm text-text-muted">
+            This permanently deletes the family, all posts, documents, and messages.
+            Type <span className="font-semibold text-text">delete</span> to confirm.
+          </p>
+          <Input
+            placeholder="Type delete to confirm"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+          />
+          <Button
+            onClick={handleDeleteFamily}
+            loading={actioning}
+            disabled={confirmText !== "delete"}
+            className="w-full !bg-error hover:!bg-error/90"
+          >
+            Delete Family
           </Button>
         </div>
       </Modal>

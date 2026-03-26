@@ -4,6 +4,35 @@ import { requireAuth } from "@/lib/auth";
 import { FamilyMember } from "@/models/FamilyMember";
 import { Profile } from "@/models/Profile";
 
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ familyId: string }> }
+) {
+  try {
+    const { userId } = requireAuth(req);
+    await connectDB();
+    const { familyId } = await params;
+
+    const membership = await FamilyMember.findOne({ family_id: familyId, user_id: userId });
+    if (!membership) return NextResponse.json({ error: "Not a member" }, { status: 404 });
+
+    if (membership.role === "admin") {
+      const adminCount = await FamilyMember.countDocuments({ family_id: familyId, role: "admin" });
+      if (adminCount <= 1) {
+        return NextResponse.json(
+          { error: "You are the only admin. Delete the family or make another member admin first." },
+          { status: 400 }
+        );
+      }
+    }
+
+    await membership.deleteOne();
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ familyId: string }> }

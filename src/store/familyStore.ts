@@ -11,6 +11,7 @@ interface FamilyState {
   setActiveFamily: (id: string) => void;
   setMembers: (members: FamilyMember[]) => void;
   addFamily: (family: Family) => void;
+  removeFamily: (id: string) => void;
   activeFamily: () => Family | null;
 }
 
@@ -35,6 +36,14 @@ export const useFamilyStore = create<FamilyState>()(
           families: [...s.families, family],
           activeFamilyId: s.activeFamilyId ?? family.id,
         })),
+      removeFamily: (id) =>
+        set((s) => {
+          const families = s.families.filter((f) => f.id !== id);
+          return {
+            families,
+            activeFamilyId: s.activeFamilyId === id ? (families[0]?.id ?? null) : s.activeFamilyId,
+          };
+        }),
       activeFamily: () => {
         const s = get();
         return s.families.find((f) => f.id === s.activeFamilyId) ?? null;

@@ -82,3 +82,26 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ postId: string }> }
+) {
+  try {
+    const { userId } = requireAuth(req);
+    await connectDB();
+    await params;
+    const { searchParams } = new URL(req.url);
+    const commentId = searchParams.get("commentId");
+    if (!commentId) return NextResponse.json({ error: "Missing commentId" }, { status: 400 });
+
+    const comment = await Comment.findById(commentId);
+    if (!comment) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (comment.author_id !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    await comment.deleteOne();
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
