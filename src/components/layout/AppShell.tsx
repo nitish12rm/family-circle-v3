@@ -61,7 +61,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-bg flex flex-col">
       <TopBar profile={profile} />
-      <main className="flex-1 pt-14 pb-20 overflow-y-auto">{children}</main>
+      <main
+        className="flex-1 overflow-y-auto"
+        style={{ paddingTop: "var(--topbar-h)", paddingBottom: "var(--bottomnav-h)" }}
+      >
+        {children}
+      </main>
       <BottomNav />
       <ToastContainer />
     </div>

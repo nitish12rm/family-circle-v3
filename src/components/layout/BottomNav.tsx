@@ -15,8 +15,11 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 h-20 bg-bg-1/80 backdrop-blur-xl border-t border-border safe-bottom">
-      <div className="h-full flex items-center justify-around px-2">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-40 bg-bg-1/80 backdrop-blur-xl border-t border-border"
+      style={{ height: "var(--bottomnav-h)" }}
+    >
+      <div className="h-20 flex items-center justify-around px-2">
         {tabs.map(({ href, icon: Icon, label }) => {
           const active = pathname === href;
           return (

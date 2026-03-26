@@ -22,7 +22,10 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-bg-1/80 backdrop-blur-xl border-b border-border flex items-center px-4 gap-3">
+    <header
+      className="fixed top-0 left-0 right-0 z-40 bg-bg-1/80 backdrop-blur-xl border-b border-border flex items-center px-4 gap-3"
+      style={{ height: "var(--topbar-h)", paddingTop: "var(--sat)" }}
+    >
       {/* Family selector — always a dropdown */}
       <div className="flex-1">
         {families.length > 0 ? (

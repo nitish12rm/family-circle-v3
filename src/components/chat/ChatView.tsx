@@ -100,7 +100,7 @@ export default function ChatView() {
   return (
     <div
       className="flex flex-col max-w-xl mx-auto overflow-hidden"
-      style={{ height: "calc(100dvh - 136px)" }}
+      style={{ height: "var(--content-h)" }}
     >
       {/* Header */}
       <div className="px-4 py-3 border-b border-border shrink-0">
