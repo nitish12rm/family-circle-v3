@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Plus, RefreshCw, Image as ImageIcon, X } from "lucide-react";
+import { Plus, RefreshCw, ImagePlus, X } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -52,21 +52,30 @@ export default function FeedView() {
   }, [loadPosts]);
 
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const remaining = 4 - mediaUrls.length;
+    const toProcess = files.slice(0, remaining);
     setUploading(true);
     try {
-      const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
-      const formData = new FormData();
-      formData.append("file", toUpload);
-      formData.append("folder", "family-circle-v3/posts");
-      const res = await api.upload<{ url: string }>("/api/upload", formData);
-      setMediaUrls((prev) => [...prev, res.url]);
+      for (const file of toProcess) {
+        const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
+        const formData = new FormData();
+        formData.append("file", toUpload);
+        formData.append("folder", "family-circle-v3/posts");
+        const res = await api.upload<{ url: string }>("/api/upload", formData);
+        setMediaUrls((prev) => [...prev, res.url]);
+      }
     } catch {
       showToast("Failed to upload image", "error");
     } finally {
       setUploading(false);
+      e.target.value = "";
     }
+  };
+
+  const handleEdit = (postId: string, content: string, mediaUrls: string[]) => {
+    setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, content, media_urls: mediaUrls } : p));
   };
 
   const handlePost = async () => {
@@ -150,6 +159,7 @@ export default function FeedView() {
               key={post.id}
               post={post}
               onDelete={handleDelete}
+              onEdit={handleEdit}
               onLikeToggle={(postId, liked, likeCount) => {
                 setPosts((prev) =>
                   prev.map((p) =>
@@ -198,17 +208,20 @@ export default function FeedView() {
           )}
 
           <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm text-text-muted hover:text-text cursor-pointer transition-colors">
-              {uploading ? <Spinner size={16} /> : <ImageIcon size={16} />}
-              <span>Add Photo</span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleMediaUpload}
-                disabled={uploading}
-              />
-            </label>
+            {mediaUrls.length < 4 && (
+              <label className="flex items-center gap-2 text-sm text-text-muted hover:text-text cursor-pointer transition-colors">
+                {uploading ? <Spinner size={16} /> : <ImagePlus size={16} />}
+                <span>{uploading ? "Uploading…" : `Add photo (${mediaUrls.length}/4)`}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleMediaUpload}
+                  disabled={uploading}
+                />
+              </label>
+            )}
             <Button
               onClick={handlePost}
               loading={posting}

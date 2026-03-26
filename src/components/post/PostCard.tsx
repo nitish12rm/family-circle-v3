@@ -1,12 +1,13 @@
 "use client";
 import { useState, useRef } from "react";
-import { Heart, MessageCircle, X, Send, Trash2, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { Heart, MessageCircle, X, Send, Trash2, ExternalLink, ChevronLeft, ChevronRight, Pencil, ImagePlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
 import { formatPostDate } from "@/lib/formatDate";
+import { compressImage } from "@/lib/imageCompression";
 import type { Post, PostComment } from "@/types";
 
 const CONTENT_LIMIT = 180;
@@ -16,11 +17,12 @@ interface LikerProfile { id: string; name: string; avatar?: string }
 interface PostCardProps {
   post: Post;
   onDelete?: (postId: string) => void;
+  onEdit?: (postId: string, content: string, mediaUrls: string[]) => void;
   navigable?: boolean;
   onLikeToggle?: (postId: string, liked: boolean, likeCount: number) => void;
 }
 
-export default function PostCard({ post, onDelete, navigable = true, onLikeToggle }: PostCardProps) {
+export default function PostCard({ post, onDelete, onEdit, navigable = true, onLikeToggle }: PostCardProps) {
   const { user, profile } = useAuthStore();
   const router = useRouter();
 
@@ -49,6 +51,14 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
 
   // Lightbox
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  // Edit post
+  const [editOpen, setEditOpen] = useState(false);
+  const [editContent, setEditContent] = useState(post.content);
+  const [editMediaUrls, setEditMediaUrls] = useState<string[]>(post.media_urls ?? []);
+  const [editUploading, setEditUploading] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
+  const editFileRef = useRef<HTMLInputElement>(null);
 
   const isLong = post.content.length > CONTENT_LIMIT;
   const displayContent = isLong && !expanded
@@ -132,6 +142,44 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
     }
   };
 
+  const handleEditUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const remaining = 4 - editMediaUrls.length;
+    const toProcess = files.slice(0, remaining);
+    setEditUploading(true);
+    try {
+      for (const file of toProcess) {
+        const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
+        const formData = new FormData();
+        formData.append("file", toUpload);
+        formData.append("folder", "family-circle-v3/posts");
+        const res = await api.upload<{ url: string }>("/api/upload", formData);
+        setEditMediaUrls((prev) => [...prev, res.url]);
+      }
+    } finally {
+      setEditUploading(false);
+      if (editFileRef.current) editFileRef.current.value = "";
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editContent.trim() || editSaving) return;
+    setEditSaving(true);
+    try {
+      const updated = await api.patch<{ content: string; media_urls: string[] }>(
+        `/api/posts/${post.id}`,
+        { content: editContent.trim(), media_urls: editMediaUrls }
+      );
+      onEdit?.(post.id, updated.content, updated.media_urls);
+      setEditOpen(false);
+    } catch {
+      // silent
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const media = post.media_urls ?? [];
   const previewLikers = post.likers ?? [];
 
@@ -157,13 +205,25 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
               {formatPostDate(post.created_at)}
             </p>
           </div>
-          {onDelete && post.author_id === user?.id && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setDeletePostOpen(true); }}
-              className="p-1 text-text-faint hover:text-error transition-colors"
-            >
-              <Trash2 size={15} />
-            </button>
+          {post.author_id === user?.id && (
+            <div className="flex items-center gap-1">
+              {onEdit && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditContent(post.content); setEditMediaUrls(post.media_urls ?? []); setEditOpen(true); }}
+                  className="p-1 text-text-faint hover:text-accent transition-colors"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeletePostOpen(true); }}
+                  className="p-1 text-text-faint hover:text-error transition-colors"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
@@ -491,6 +551,85 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Edit post sheet */}
+      {editOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setEditOpen(false)}>
+          <div
+            className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
+              <div className="w-10 h-1 bg-border rounded-full" />
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+              <h2 className="text-sm font-semibold text-text">Edit Post</h2>
+              <button onClick={() => setEditOpen(false)} className="p-1 text-text-faint hover:text-text">
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-4">
+              {/* Text */}
+              <textarea
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={4}
+                className="w-full bg-bg-2 border border-border rounded-2xl px-4 py-3 text-sm text-text placeholder:text-text-faint outline-none focus:border-accent resize-none transition-colors"
+                placeholder="What's on your mind?"
+              />
+
+              {/* Current images */}
+              {editMediaUrls.length > 0 && (
+                <div className="grid grid-cols-2 gap-2">
+                  {editMediaUrls.map((url, i) => (
+                    <div key={i} className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt="" className="rounded-xl w-full h-28 object-contain bg-black" />
+                      <button
+                        onClick={() => setEditMediaUrls((prev) => prev.filter((_, j) => j !== i))}
+                        className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5"
+                      >
+                        <X size={12} className="text-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add more photos */}
+              {editMediaUrls.length < 4 && (
+                <label className="flex items-center gap-2 text-sm text-text-muted hover:text-text cursor-pointer transition-colors w-fit">
+                  {editUploading ? <Spinner size={16} /> : <ImagePlus size={16} />}
+                  <span>{editUploading ? "Uploading…" : `Add photo (${editMediaUrls.length}/4)`}</span>
+                  <input
+                    ref={editFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={handleEditUpload}
+                    disabled={editUploading}
+                  />
+                </label>
+              )}
+            </div>
+
+            {/* Save */}
+            <div className="shrink-0 border-t border-border px-5 py-4">
+              <button
+                onClick={handleSaveEdit}
+                disabled={!editContent.trim() || editSaving || editUploading}
+                className="w-full py-3 rounded-2xl bg-accent text-white text-sm font-semibold disabled:opacity-40 transition-opacity flex items-center justify-center gap-2"
+              >
+                {editSaving ? <Spinner size={16} /> : <Pencil size={15} />}
+                Save changes
+              </button>
+            </div>
+            <div className="pb-6 shrink-0" />
           </div>
         </div>
       )}

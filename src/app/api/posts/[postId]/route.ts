@@ -5,6 +5,7 @@ import { Post } from "@/models/Post";
 import { Profile } from "@/models/Profile";
 import { Like } from "@/models/Like";
 import { Comment } from "@/models/Comment";
+import { deleteAllFromCloudinary } from "@/lib/cloudinaryDelete";
 
 export async function GET(
   req: NextRequest,
@@ -39,5 +40,41 @@ export async function GET(
     });
   } catch {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ postId: string }> }
+) {
+  try {
+    const { userId } = requireAuth(req);
+    await connectDB();
+    const { postId } = await params;
+    const { content, media_urls } = await req.json();
+
+    const post = await Post.findById(postId);
+    if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (post.author_id !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+
+    // Delete Cloudinary assets for removed images
+    const removed: string[] = (post.media_urls as string[]).filter(
+      (url: string) => !((media_urls ?? []) as string[]).includes(url)
+    );
+    if (removed.length) void deleteAllFromCloudinary(removed);
+
+    if (content !== undefined) post.content = content.trim();
+    if (media_urls !== undefined) post.media_urls = media_urls;
+    post.updated_at = new Date();
+    await post.save();
+
+    return NextResponse.json({
+      id: post._id,
+      content: post.content,
+      media_urls: post.media_urls,
+      updated_at: post.updated_at,
+    });
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 }

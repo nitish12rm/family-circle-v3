@@ -8,7 +8,7 @@ const postSchema = new Schema(
     content: { type: String, required: true },
     media_urls: { type: [String], default: [] },
   },
-  { timestamps: { createdAt: "created_at", updatedAt: false } }
+  { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
 );
 
 postSchema.index({ family_id: 1, created_at: -1 });
