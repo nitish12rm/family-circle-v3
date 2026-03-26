@@ -6,7 +6,7 @@ import { TreeRelationship } from "@/models/TreeRelationship";
 import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
 
-type RelType = "parent" | "child" | "spouse" | "sibling";
+type RelType = "parent" | "child" | "spouse" | "sibling" | "step_parent" | "step_child";
 type PlaceRelType = RelType | "cousin" | "2nd_cousin" | "3rd_cousin" | "uncle_aunt" | "niece_nephew" | "none";
 
 const INVERSE: Record<RelType, RelType> = {
@@ -14,6 +14,8 @@ const INVERSE: Record<RelType, RelType> = {
   child: "parent",
   spouse: "spouse",
   sibling: "sibling",
+  step_parent: "step_child",
+  step_child: "step_parent",
 };
 
 interface RelDoc {
@@ -294,8 +296,11 @@ export async function POST(
       addRel(myGParentId, myParentId, "parent");
       addRel(myParentId, newMemberId, "parent");
 
+    // ── STEP_PARENT: user is step-parent of anchor ───────────────────────────
+    } else if (relationship === "step_parent") {
+      addRel(newMemberId, anchorId, "step_parent");
+
     // ── NONE: place without any connection ───────────────────────────────────
-    // (user is in the family but relationship not yet known — floating node)
     } else if (relationship === "none") {
       // No relationships added — node exists unconnected, can be linked later
     }

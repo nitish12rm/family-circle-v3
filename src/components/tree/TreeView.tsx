@@ -412,43 +412,107 @@ export default function TreeView() {
           onTouchMove={onTouchMove}
           onTouchEnd={() => { touchStart.current = null; }}
         >
-          {/* Relationship lines */}
+          {/* ── Relationship lines ─────────────────────────────────────── */}
+
+          {/* Spouse lines (dashed purple horizontal) */}
           {treeData.relationships
-            .filter((r) => r.type === "parent" || r.type === "spouse")
+            .filter((r) => r.type === "spouse")
+            .map((rel) => {
+              const from = posMap.get(rel.member_id);
+              const to = posMap.get(rel.related_member_id);
+              if (!from || !to || from.x >= to.x) return null;
+              return (
+                <line
+                  key={rel.id}
+                  x1={from.x + NODE_W}
+                  y1={from.y + NODE_H / 2}
+                  x2={to.x}
+                  y2={to.y + NODE_H / 2}
+                  stroke="rgba(124,92,252,0.4)"
+                  strokeWidth={1.5}
+                  strokeDasharray="4 3"
+                />
+              );
+            })}
+
+          {/* Couple → children connectors (clean grouped lines) */}
+          {(() => {
+            // Build childId → [parentId, ...] from "parent" type only (biological)
+            const bioParentsOf: Record<string, string[]> = {};
+            for (const r of treeData.relationships) {
+              if (r.type !== "parent") continue;
+              if (!bioParentsOf[r.related_member_id]) bioParentsOf[r.related_member_id] = [];
+              bioParentsOf[r.related_member_id].push(r.member_id);
+            }
+            // Group children by their parent-pair key
+            const coupleChildren = new Map<string, string[]>();
+            for (const [childId, parentIds] of Object.entries(bioParentsOf)) {
+              const key = [...parentIds].sort().join("|");
+              if (!coupleChildren.has(key)) coupleChildren.set(key, []);
+              coupleChildren.get(key)!.push(childId);
+            }
+
+            return Array.from(coupleChildren.entries()).map(([coupleKey, childIds]) => {
+              const parentIds = coupleKey.split("|");
+              const parentPos = parentIds.map((id) => posMap.get(id)).filter(Boolean) as { x: number; y: number }[];
+              const childPos = childIds.map((id) => posMap.get(id)).filter(Boolean) as { x: number; y: number }[];
+              if (parentPos.length === 0 || childPos.length === 0) return null;
+
+              const parentBottomY = parentPos[0].y + NODE_H;
+              const childTopY = Math.min(...childPos.map((p) => p.y));
+              const junctionY = parentBottomY + (childTopY - parentBottomY) * 0.5;
+
+              const stemX =
+                parentPos.length === 1
+                  ? parentPos[0].x + NODE_W / 2
+                  : (Math.min(...parentPos.map((p) => p.x)) + Math.max(...parentPos.map((p) => p.x)) + NODE_W) / 2;
+
+              const childCenterXs = childPos.map((p) => p.x + NODE_W / 2);
+              const childMinX = Math.min(...childCenterXs);
+              const childMaxX = Math.max(...childCenterXs);
+
+              const lineColor = "rgba(255,255,255,0.2)";
+
+              return (
+                <g key={`conn-${coupleKey}`}>
+                  {/* Stem: couple midpoint → junction */}
+                  <line x1={stemX} y1={parentBottomY} x2={stemX} y2={junctionY}
+                    stroke={lineColor} strokeWidth={1.5} />
+                  {/* Horizontal bar spanning all children */}
+                  {childPos.length > 1 && (
+                    <line x1={childMinX} y1={junctionY} x2={childMaxX} y2={junctionY}
+                      stroke={lineColor} strokeWidth={1.5} />
+                  )}
+                  {/* Vertical drops to each child */}
+                  {childPos.map((cp, i) => (
+                    <line key={i} x1={cp.x + NODE_W / 2} y1={junctionY} x2={cp.x + NODE_W / 2} y2={cp.y}
+                      stroke={lineColor} strokeWidth={1.5} />
+                  ))}
+                </g>
+              );
+            });
+          })()}
+
+          {/* Step-parent lines (dashed amber) */}
+          {treeData.relationships
+            .filter((r) => r.type === "step_parent")
             .map((rel) => {
               const from = posMap.get(rel.member_id);
               const to = posMap.get(rel.related_member_id);
               if (!from || !to) return null;
-              // parent→child: from = parent (top), to = child (bottom)
               const x1 = from.x + NODE_W / 2;
-              const y1 = from.y + NODE_H;        // parent's bottom edge
+              const y1 = from.y + NODE_H;
               const x2 = to.x + NODE_W / 2;
-              const y2 = to.y;                   // child's top edge
+              const y2 = to.y;
               const my = (y1 + y2) / 2;
-
-              if (rel.type === "spouse") {
-                // Relationships are stored bidirectionally — only draw left-to-right
-                if (from.x >= to.x) return null;
-                return (
-                  <line
-                    key={rel.id}
-                    x1={from.x + NODE_W}
-                    y1={from.y + NODE_H / 2}
-                    x2={to.x}
-                    y2={to.y + NODE_H / 2}
-                    stroke="rgba(124,92,252,0.4)"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 3"
-                  />
-                );
-              }
               return (
                 <path
                   key={rel.id}
                   d={`M ${x1} ${y1} C ${x1} ${my} ${x2} ${my} ${x2} ${y2}`}
                   fill="none"
-                  stroke="rgba(255,255,255,0.15)"
+                  stroke="rgba(251,146,60,0.55)"
                   strokeWidth={1.5}
+                  strokeDasharray="5 4"
                 />
               );
             })}
@@ -669,8 +733,10 @@ export default function TreeView() {
               onChange={(e) => setRelForm({ ...relForm, type: e.target.value })}
               className="w-full bg-bg-2 border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent"
             >
-              <option value="parent">is parent of</option>
-              <option value="child">is child of</option>
+              <option value="parent">is biological parent of</option>
+              <option value="child">is biological child of</option>
+              <option value="step_parent">is step-parent of</option>
+              <option value="step_child">is step-child of</option>
               <option value="spouse">is spouse of</option>
               <option value="sibling">is sibling of</option>
             </select>

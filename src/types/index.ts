@@ -103,7 +103,7 @@ export interface TreeRelationship {
   family_id: string;
   member_id: string;
   related_member_id: string;
-  type: "parent" | "child" | "spouse" | "sibling";
+  type: "parent" | "child" | "spouse" | "sibling" | "step_parent" | "step_child";
 }
 
 export const DOCUMENT_CATEGORIES = [

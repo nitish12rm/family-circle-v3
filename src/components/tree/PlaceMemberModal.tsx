@@ -13,7 +13,7 @@ import type { TreeMember, TreeRelationship } from "@/types";
 type Step = "root" | "anchor" | "category" | "relation" | "preview";
 type RelCategory = "immediate" | "extended" | "distant";
 type Relation =
-  | "child" | "parent" | "sibling" | "spouse"
+  | "child" | "parent" | "sibling" | "spouse" | "step_parent"
   | "uncle_aunt" | "niece_nephew" | "cousin"
   | "2nd_cousin" | "3rd_cousin"
   | "none";
@@ -80,6 +80,12 @@ function getRelationsByCategory(
         label: m ? "Their husband" : f ? "Their wife" : "Their spouse",
         desc: m ? "I am their husband" : f ? "I am their wife" : "I am their partner",
         emoji: m ? "🤵" : f ? "👰" : "💍",
+      },
+      {
+        value: "step_parent",
+        label: m ? "Their step-father" : f ? "Their step-mother" : "Their step-parent",
+        desc: "I am their step-parent (not biological)",
+        emoji: "🤝",
       },
     ];
   }
@@ -226,6 +232,9 @@ function buildPreview(
         placeholders.push(`Unknown Great-Grandparent — ${anchor.name}'s side`);
       }
     }
+  } else if (relation === "step_parent") {
+    lines.push(`Linked as step-parent of ${anchor.name}.`);
+    lines.push("Shown with a separate dashed line in the tree.");
   } else if (relation === "none") {
     lines.push("Added to the tree without a direct connection.");
     lines.push("You or another member can link you to others later.");
