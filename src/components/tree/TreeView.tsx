@@ -402,6 +402,23 @@ export default function TreeView() {
               .join("")
               .toUpperCase();
 
+            const genderFill = member.gender === "female"
+              ? "rgba(236,72,153,0.3)"
+              : member.gender === "male"
+              ? "rgba(59,130,246,0.3)"
+              : "rgba(124,92,252,0.3)";
+            const genderStroke = member.gender === "female"
+              ? "rgba(236,72,153,0.8)"
+              : member.gender === "male"
+              ? "rgba(59,130,246,0.8)"
+              : "rgba(124,92,252,0.8)";
+            const cardTint = member.gender === "female"
+              ? "rgba(236,72,153,0.07)"
+              : member.gender === "male"
+              ? "rgba(59,130,246,0.07)"
+              : "rgba(28,28,31,0.95)";
+            const clipId = `avatar-${member.id}`;
+
             return (
               <g
                 key={member.id}
@@ -409,31 +426,49 @@ export default function TreeView() {
                 transform={`translate(${x}, ${y})`}
                 onClick={() => setSelectedMember(isSelected ? null : member)}
               >
+                <defs>
+                  <clipPath id={clipId}>
+                    <circle cx={NODE_W / 2} cy={26} r={18} />
+                  </clipPath>
+                </defs>
                 {/* Card */}
                 <rect
                   width={NODE_W}
                   height={NODE_H}
                   rx={12}
-                  fill={isSelected ? "rgba(124,92,252,0.15)" : "rgba(28,28,31,0.95)"}
-                  stroke={isSelected ? "#7C5CFC" : "rgba(255,255,255,0.1)"}
+                  fill={isSelected ? "rgba(124,92,252,0.15)" : cardTint}
+                  stroke={isSelected ? "#7C5CFC" : genderStroke.replace("0.8", "0.25")}
                   strokeWidth={isSelected ? 1.5 : 1}
                 />
-                {/* Avatar circle */}
+                {/* Avatar circle background */}
                 <circle cx={NODE_W / 2} cy={26} r={18}
-                  fill={member.gender === "female" ? "rgba(236,72,153,0.2)" : member.gender === "male" ? "rgba(59,130,246,0.2)" : "rgba(124,92,252,0.2)"}
-                  stroke={member.gender === "female" ? "rgba(236,72,153,0.4)" : member.gender === "male" ? "rgba(59,130,246,0.4)" : "rgba(124,92,252,0.4)"}
-                  strokeWidth={1}
+                  fill={genderFill}
+                  stroke={genderStroke}
+                  strokeWidth={1.5}
                 />
-                <text
-                  x={NODE_W / 2}
-                  y={31}
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize={12}
-                  fontWeight={600}
-                >
-                  {initials}
-                </text>
+                {/* Profile photo or initials */}
+                {member.photo ? (
+                  <image
+                    href={member.photo}
+                    x={NODE_W / 2 - 18}
+                    y={8}
+                    width={36}
+                    height={36}
+                    clipPath={`url(#${clipId})`}
+                    preserveAspectRatio="xMidYMid slice"
+                  />
+                ) : (
+                  <text
+                    x={NODE_W / 2}
+                    y={31}
+                    textAnchor="middle"
+                    fill="white"
+                    fontSize={12}
+                    fontWeight={600}
+                  >
+                    {initials}
+                  </text>
+                )}
                 {/* Name */}
                 <text
                   x={NODE_W / 2}
@@ -457,10 +492,10 @@ export default function TreeView() {
                     {member.dob}
                   </text>
                 )}
-                {/* Deceased badge */}
+                {/* Deceased indicator */}
                 {member.is_deceased && (
                   <rect x={NODE_W - 22} y={4} width={18} height={10} rx={5}
-                    fill="rgba(255,255,255,0.1)" />
+                    fill="rgba(255,255,255,0.15)" />
                 )}
               </g>
             );
