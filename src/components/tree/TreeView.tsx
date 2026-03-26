@@ -261,20 +261,34 @@ function buildLayout(
       (cid) => !secondaryIds.has(cid)
     );
 
+    // If a child is already positioned (claimed by another parent), derive our
+    // generation from its y so we don't land on the wrong row.
+    let effectiveDepth = depth;
+    for (const cid of allChildren) {
+      const existing = positioned.get(cid);
+      if (existing) {
+        effectiveDepth = Math.max(effectiveDepth, Math.round(existing.y / GEN_GAP) - 1);
+      }
+    }
+
+    // If every child is already positioned, don't center over them (would overlap
+    // with their primary parent). Reserve a fresh slot at the end instead.
+    const allPrePositioned = allChildren.length > 0 && allChildren.every((cid) => positioned.has(cid));
+
     let centerX: number;
-    if (allChildren.length === 0) {
+    if (allChildren.length === 0 || allPrePositioned) {
       centerX = hasSecondarySpouse ? globalX + NODE_GAP / 2 : globalX;
       globalX += hasSecondarySpouse ? NODE_GAP * 2 : NODE_GAP;
     } else {
       const childXs: number[] = [];
       for (const cid of allChildren) {
-        childXs.push(placeSubtree(cid, depth + 1));
+        childXs.push(placeSubtree(cid, effectiveDepth + 1));
       }
       centerX = (Math.min(...childXs) + Math.max(...childXs)) / 2;
     }
 
     const x = hasSecondarySpouse ? centerX - NODE_GAP / 2 : centerX;
-    positioned.set(memberId, { x, y: depth * GEN_GAP, member });
+    positioned.set(memberId, { x, y: effectiveDepth * GEN_GAP, member });
     return x;
   }
 
@@ -634,12 +648,14 @@ export default function TreeView() {
 
           {/* Couple → children connectors (clean grouped lines) */}
           {(() => {
-            // Build childId → [parentId, ...] from "parent" type only (biological)
+            // Build childId → [parentId, ...] from "parent" type only (biological).
+            // Cap at 2 parents per child — extra parent records are data artifacts.
             const bioParentsOf: Record<string, string[]> = {};
             for (const r of treeData.relationships) {
               if (r.type !== "parent") continue;
               if (!bioParentsOf[r.related_member_id]) bioParentsOf[r.related_member_id] = [];
-              bioParentsOf[r.related_member_id].push(r.member_id);
+              if (bioParentsOf[r.related_member_id].length < 2)
+                bioParentsOf[r.related_member_id].push(r.member_id);
             }
             // Group children by their parent-pair key
             const coupleChildren = new Map<string, string[]>();
