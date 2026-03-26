@@ -415,6 +415,17 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
                 </p>
               </div>
 
+              {/* Decision tip */}
+              <div className="bg-accent/8 border border-accent/20 rounded-xl px-3 py-2.5 flex gap-2.5 items-start">
+                <span className="text-base shrink-0 mt-0.5">💡</span>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  <span className="font-semibold text-text">Not sure where to start?</span>{" "}
+                  Try <span className="text-accent font-medium">Immediate</span> first — parent, child, sibling, or spouse.
+                  If none of those fit, move to <span className="text-accent font-medium">Extended</span>.
+                  If more than one option in Extended could work, just pick the closest one.
+                </p>
+              </div>
+
               <div className="flex flex-col gap-2">
                 {CATEGORIES.map((cat) => (
                   <button
@@ -476,6 +487,15 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
                   <span className="font-medium text-text">{anchor.name}</span>
                 </p>
               </div>
+
+              {category === "extended" && (
+                <div className="bg-bg-3 border border-border rounded-xl px-3 py-2 flex gap-2 items-start">
+                  <span className="text-sm shrink-0 mt-0.5">ℹ️</span>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    If more than one option fits, pick any — the tree will still place you correctly relative to {anchor.name}.
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 {categoryRelations.map((r) => (
