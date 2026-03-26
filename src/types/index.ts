@@ -80,6 +80,7 @@ export interface Message {
   content: string;
   sender?: Profile;
   created_at: string;
+  read_by: { id: string; name: string; avatar?: string }[];
 }
 
 export interface TreeMember {
