@@ -5,7 +5,8 @@ import { Profile } from "@/models/Profile";
 import { FamilyMember } from "@/models/FamilyMember";
 import { Post } from "@/models/Post";
 import { Document } from "@/models/Document";
-import { TreeMember } from "@/models/TreeMember";
+import { Like } from "@/models/Like";
+import { Comment } from "@/models/Comment";
 
 export async function GET(
   req: NextRequest,
@@ -41,6 +42,23 @@ export async function GET(
       .limit(30)
       .lean() as Record<string, unknown>[];
 
+    const postIds = posts.map((p) => p._id);
+    const [allLikes, allComments] = await Promise.all([
+      Like.find({ post_id: { $in: postIds } }).lean() as Promise<{ post_id: string; user_id: string }[]>,
+      Comment.find({ post_id: { $in: postIds } }).lean() as Promise<{ post_id: string }[]>,
+    ]);
+
+    const likeCountMap: Record<string, number> = {};
+    const likedByMeMap: Record<string, boolean> = {};
+    for (const like of allLikes) {
+      likeCountMap[like.post_id] = (likeCountMap[like.post_id] ?? 0) + 1;
+      if (like.user_id === viewerId) likedByMeMap[like.post_id] = true;
+    }
+    const commentCountMap: Record<string, number> = {};
+    for (const c of allComments) {
+      commentCountMap[c.post_id] = (commentCountMap[c.post_id] ?? 0) + 1;
+    }
+
     // Public documents uploaded by this user in shared families
     const documents = await Document.find({
       uploaded_by: userId,
@@ -68,6 +86,9 @@ export async function GET(
         media_urls: Array.isArray(p.media_urls) ? p.media_urls : [],
         family_id: p.family_id,
         created_at: p.created_at,
+        like_count: likeCountMap[p._id as string] ?? 0,
+        comment_count: commentCountMap[p._id as string] ?? 0,
+        liked_by_me: likedByMeMap[p._id as string] ?? false,
       })),
       documents: documents.map((d) => ({
         id: d._id,

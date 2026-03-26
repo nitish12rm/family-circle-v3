@@ -278,7 +278,7 @@ export default function ProfileView() {
             <p className="text-text-muted text-sm">No posts yet.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-0.5 bg-border border-t border-border">
+          <div className="grid grid-cols-3 gap-2 px-3 pt-3">
             {posts.map((post) => {
               const media = post.media_urls ?? [];
               const likes = post.like_count ?? 0;
@@ -287,7 +287,7 @@ export default function ProfileView() {
                 <button
                   key={post.id}
                   onClick={() => router.push(`/post/${post.id}`)}
-                  className="aspect-square overflow-hidden relative group bg-bg-2"
+                  className="aspect-square overflow-hidden relative group bg-bg-2 rounded-2xl"
                 >
                   {media.length > 0 ? (
                     <>
