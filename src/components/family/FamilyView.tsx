@@ -1,9 +1,10 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Copy, Check, UserPlus, Trash2, Users } from "lucide-react";
+import { Plus, Copy, Check, UserPlus, Trash2, Users, ChevronRight } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
 import Button from "@/components/ui/Button";
@@ -17,6 +18,7 @@ export default function FamilyView() {
   const { activeFamilyId, families, addFamily, setFamilies } = useFamilyStore();
   const { user } = useAuthStore();
   const { showToast } = useUIStore();
+  const router = useRouter();
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [invites, setInvites] = useState<FamilyInvite[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,9 +184,10 @@ export default function FamilyView() {
             ) : (
               <div className="divide-y divide-border">
                 {members.map((member) => (
-                  <div
+                  <button
                     key={member.id}
-                    className="flex items-center gap-3 px-4 py-3"
+                    onClick={() => router.push(`/profile/${member.user_id}`)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-bg-3 transition-colors text-left"
                   >
                     <Avatar
                       src={member.profile?.avatar}
@@ -202,7 +205,8 @@ export default function FamilyView() {
                         {member.role === "admin" ? "Admin" : "Member"}
                       </p>
                     </div>
-                  </div>
+                    <ChevronRight size={14} className="text-text-faint shrink-0" />
+                  </button>
                 ))}
               </div>
             )}
