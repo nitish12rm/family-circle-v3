@@ -1,0 +1,161 @@
+import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/mongodb";
+import { requireAuth } from "@/lib/auth";
+import { TreeMember } from "@/models/TreeMember";
+import { TreeRelationship } from "@/models/TreeRelationship";
+import { Profile } from "@/models/Profile";
+import { randomUUID } from "crypto";
+
+type RelType = "parent" | "child" | "spouse" | "sibling";
+const INVERSE: Record<RelType, RelType> = {
+  parent: "child",
+  child: "parent",
+  spouse: "spouse",
+  sibling: "sibling",
+};
+
+interface RelDoc {
+  _id: string;
+  family_id: string;
+  member_id: string;
+  related_member_id: string;
+  type: RelType;
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ familyId: string }> }
+) {
+  try {
+    const { userId } = requireAuth(req);
+    await connectDB();
+    const { familyId } = await params;
+    const { anchor_member_id, relationship } = await req.json() as {
+      anchor_member_id: string;
+      relationship: RelType;
+    };
+
+    // Already placed?
+    const existing = await TreeMember.findOne({ family_id: familyId, profile_id: userId }).lean();
+    if (existing) return NextResponse.json({ member: existing, placeholders: [] });
+
+    const profile = await Profile.findById(userId).select("name").lean() as { name: string } | null;
+    if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+
+    const anchor = await TreeMember.findOne({ _id: anchor_member_id, family_id: familyId }).lean() as { _id: string } | null;
+    if (!anchor) return NextResponse.json({ error: "Anchor not found" }, { status: 404 });
+
+    const newMemberId = randomUUID();
+    const rels: RelDoc[] = [];
+    const placeholderDocs: object[] = [];
+
+    // Helpers
+    const addRel = (a: string, b: string, type: RelType) => {
+      rels.push(
+        { _id: randomUUID(), family_id: familyId, member_id: a, related_member_id: b, type },
+        { _id: randomUUID(), family_id: familyId, member_id: b, related_member_id: a, type: INVERSE[type] }
+      );
+    };
+
+    const addPlaceholder = (name: string) => {
+      const id = randomUUID();
+      placeholderDocs.push({
+        _id: id,
+        family_id: familyId,
+        name,
+        is_placeholder: true,
+        is_deceased: false,
+      });
+      return id;
+    };
+
+    const anchorId = anchor._id as string;
+
+    // ── CHILD: user is child of anchor ────────────────────────────────────────
+    if (relationship === "child") {
+      addRel(anchorId, newMemberId, "parent");
+
+      const spouseRel = await TreeRelationship.findOne({
+        family_id: familyId, member_id: anchorId, type: "spouse",
+      }).lean() as { related_member_id: string } | null;
+
+      if (spouseRel) {
+        addRel(spouseRel.related_member_id, newMemberId, "parent");
+      } else {
+        const phId = addPlaceholder("Unknown Parent");
+        addRel(anchorId, phId, "spouse");
+        addRel(phId, newMemberId, "parent");
+      }
+
+    // ── PARENT: user is parent of anchor ─────────────────────────────────────
+    } else if (relationship === "parent") {
+      addRel(newMemberId, anchorId, "parent");
+
+      const parentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "child",
+      }).lean() as { related_member_id: string }[];
+
+      if (parentRels.length === 0) {
+        const phId = addPlaceholder("Unknown Parent");
+        addRel(newMemberId, phId, "spouse");
+        addRel(phId, anchorId, "parent");
+      } else if (parentRels.length === 1) {
+        // Become spouse of the existing parent
+        addRel(newMemberId, parentRels[0].related_member_id, "spouse");
+      }
+      // 2+ parents → just add the parent edge (step-parent)
+
+    // ── SIBLING: user is sibling of anchor ───────────────────────────────────
+    } else if (relationship === "sibling") {
+      addRel(newMemberId, anchorId, "sibling");
+
+      const parentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "child",
+      }).lean() as { related_member_id: string }[];
+
+      if (parentRels.length > 0) {
+        // Inherit anchor's parents
+        for (const pr of parentRels) {
+          addRel(pr.related_member_id, newMemberId, "parent");
+        }
+      } else {
+        // Share a new placeholder parent
+        const phId = addPlaceholder("Unknown Parent");
+        addRel(phId, anchorId, "parent");
+        addRel(phId, newMemberId, "parent");
+      }
+
+    // ── SPOUSE: user is spouse of anchor ─────────────────────────────────────
+    } else if (relationship === "spouse") {
+      addRel(newMemberId, anchorId, "spouse");
+
+      const childRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "parent",
+      }).lean() as { related_member_id: string }[];
+
+      for (const cr of childRels) {
+        addRel(newMemberId, cr.related_member_id, "parent");
+      }
+    }
+
+    // Persist everything
+    const newMember = await TreeMember.create({
+      _id: newMemberId,
+      family_id: familyId,
+      profile_id: userId,
+      name: profile.name,
+      is_placeholder: false,
+      is_deceased: false,
+    });
+
+    const placeholders =
+      placeholderDocs.length > 0 ? await TreeMember.insertMany(placeholderDocs) : [];
+
+    if (rels.length > 0) await TreeRelationship.insertMany(rels);
+
+    return NextResponse.json({ member: newMember, placeholders });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
+  }
+}

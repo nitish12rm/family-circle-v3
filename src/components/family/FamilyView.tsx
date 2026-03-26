@@ -10,6 +10,7 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
+import PlaceMemberModal from "@/components/tree/PlaceMemberModal";
 import type { FamilyMember, FamilyInvite, Family } from "@/types";
 
 export default function FamilyView() {
@@ -26,6 +27,7 @@ export default function FamilyView() {
   const [creating, setCreating] = useState(false);
   const [joining, setJoining] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [placementFamilyId, setPlacementFamilyId] = useState<string | null>(null);
 
   const appUrl =
     typeof window !== "undefined" ? window.location.origin : "";
@@ -73,12 +75,15 @@ export default function FamilyView() {
     if (!inviteCode.trim()) return;
     setJoining(true);
     try {
-      await api.post(`/api/join/${inviteCode.trim()}`, {});
+      const res = await api.post<{ family: Family }>(`/api/join/${inviteCode.trim()}`, {});
       const updatedFamilies = await api.get<Family[]>("/api/families");
       setFamilies(updatedFamilies);
       setInviteCode("");
       setJoinOpen(false);
       showToast("Joined family!", "success");
+      // Trigger tree placement flow
+      const joinedId = res.family?.id;
+      if (joinedId) setPlacementFamilyId(joinedId);
     } catch (e) {
       showToast(e instanceof Error ? e.message : "Failed to join", "error");
     } finally {
@@ -293,6 +298,16 @@ export default function FamilyView() {
           </Button>
         </div>
       </Modal>
+
+      {/* Tree placement modal — triggered after joining a family */}
+      {placementFamilyId && (
+        <PlaceMemberModal
+          open={!!placementFamilyId}
+          familyId={placementFamilyId}
+          onComplete={() => setPlacementFamilyId(null)}
+          onSkip={() => setPlacementFamilyId(null)}
+        />
+      )}
     </div>
   );
 }
