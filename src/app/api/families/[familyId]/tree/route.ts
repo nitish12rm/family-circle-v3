@@ -140,13 +140,15 @@ export async function PATCH(
       if (!adminCheck) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       const pid = (updates.profile_id as string) ?? (target as { profile_id?: string }).profile_id;
       if (pid) {
-        const profile = await Profile.findById(pid).select("name gender avatar").lean() as {
-          name?: string; gender?: string; avatar?: string;
-        } | null;
+        const profile = await Profile.findById(pid)
+          .select("name gender avatar dob status")
+          .lean() as { name?: string; gender?: string; avatar?: string; dob?: string; status?: string } | null;
         if (profile) {
-          if (profile.name) updates.name = profile.name;
+          if (profile.name)   updates.name   = profile.name;
           if (profile.gender) updates.gender = profile.gender;
-          if (profile.avatar) updates.photo = profile.avatar;
+          if (profile.avatar) updates.photo  = profile.avatar;
+          if (profile.dob)    updates.dob    = profile.dob;
+          if (profile.status) updates.status = profile.status;
         }
       }
     }
