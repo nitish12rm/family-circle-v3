@@ -33,9 +33,94 @@ interface NodePosition {
 }
 
 const NODE_W = 120;
-const NODE_H = 80;
-const GEN_GAP = 160;
+const NODE_H = 90;
+const GEN_GAP = 170;
 const NODE_GAP = 140;
+
+// ── Relationship label computation ────────────────────────────────────────────
+const STEP_FROM_REL: Record<string, string> = {
+  parent: "child",       // I am parent → they are my child
+  child: "parent",       // I am child → they are my parent
+  sibling: "sibling",
+  spouse: "spouse",
+  step_parent: "step_child",
+  step_child: "step_parent",
+};
+
+type G = string | undefined;
+function pick(gender: G, male: string, female: string, neutral: string) {
+  return gender === "male" ? male : gender === "female" ? female : neutral;
+}
+
+function pathToLabel(path: string[], gender: G): string | null {
+  const k = path.join(">");
+  const p = pick.bind(null, gender);
+  const map: Record<string, string> = {
+    "parent":                              p("Father",          "Mother",          "Parent"),
+    "child":                               p("Son",             "Daughter",        "Child"),
+    "sibling":                             p("Brother",         "Sister",          "Sibling"),
+    "spouse":                              p("Husband",         "Wife",            "Partner"),
+    "step_parent":                         p("Step-father",     "Step-mother",     "Step-parent"),
+    "step_child":                          p("Step-son",        "Step-daughter",   "Step-child"),
+    "parent>parent":                       p("Grandfather",     "Grandmother",     "Grandparent"),
+    "child>child":                         p("Grandson",        "Granddaughter",   "Grandchild"),
+    "parent>sibling":                      p("Uncle",           "Aunt",            "Uncle/Aunt"),
+    "sibling>child":                       p("Nephew",          "Niece",           "Niece/Nephew"),
+    "spouse>parent":                       p("Father-in-law",   "Mother-in-law",   "Parent-in-law"),
+    "spouse>sibling":                      p("Brother-in-law",  "Sister-in-law",   "Sibling-in-law"),
+    "sibling>spouse":                      p("Brother-in-law",  "Sister-in-law",   "Sibling-in-law"),
+    "child>spouse":                        p("Son-in-law",      "Daughter-in-law", "Child-in-law"),
+    "parent>parent>parent":                p("Great-grandfather","Great-grandmother","Great-grandparent"),
+    "child>child>child":                   p("Great-grandson",  "Great-granddaughter","Great-grandchild"),
+    "parent>parent>sibling":               p("Great-uncle",     "Great-aunt",      "Great-uncle/aunt"),
+    "sibling>child>child":                 p("Grand-nephew",    "Grand-niece",     "Grand-niece/nephew"),
+    "parent>sibling>child":                "1st Cousin",
+    "parent>parent>sibling>child":         "1st Cousin once removed",
+    "parent>sibling>child>child":          "1st Cousin once removed",
+    "parent>parent>sibling>child>child":   "2nd Cousin",
+    "parent>sibling>child>child>child":    "2nd Cousin once removed",
+    "parent>parent>parent>sibling>child>child": "2nd Cousin",
+  };
+  if (map[k]) return map[k];
+  if (path.length <= 5) return "Relative";
+  return null;
+}
+
+function computeRelLabels(
+  myId: string,
+  members: TreeMember[],
+  relationships: TreeRelationship[]
+): Map<string, string> {
+  const labels = new Map<string, string>();
+  labels.set(myId, "You");
+
+  const adj = new Map<string, { id: string; step: string }[]>();
+  for (const m of members) adj.set(m.id, []);
+  for (const r of relationships) {
+    const step = STEP_FROM_REL[r.type];
+    if (!step) continue;
+    adj.get(r.member_id)?.push({ id: r.related_member_id, step });
+  }
+
+  const visited = new Set<string>([myId]);
+  const queue: { id: string; path: string[] }[] = [{ id: myId, path: [] }];
+
+  while (queue.length > 0) {
+    const { id, path } = queue.shift()!;
+    if (path.length >= 6) continue;
+    for (const { id: nId, step } of adj.get(id) ?? []) {
+      if (visited.has(nId)) continue;
+      visited.add(nId);
+      const newPath = [...path, step];
+      const neighbor = members.find((m) => m.id === nId);
+      const label = pathToLabel(newPath, neighbor?.gender);
+      if (label) labels.set(nId, label);
+      queue.push({ id: nId, path: newPath });
+    }
+  }
+
+  return labels;
+}
 
 function buildLayout(
   members: TreeMember[],
@@ -173,6 +258,8 @@ export default function TreeView() {
 
   // Admin role
   const [isAdmin, setIsAdmin] = useState(false);
+  // Relation labels keyed by member id
+  const [relLabels, setRelLabels] = useState<Map<string, string>>(new Map());
 
   // Placement
   const [showPlacement, setShowPlacement] = useState(false);
@@ -199,6 +286,14 @@ export default function TreeView() {
       setTreeData(data);
       const pos = buildLayout(data.members, data.relationships);
       setPositions(pos);
+
+      // Compute relation labels from current user's perspective
+      if (user?.id) {
+        const myNode = data.members.find((m) => m.profile_id === user.id && !m.is_placeholder);
+        if (myNode) {
+          setRelLabels(computeRelLabels(myNode.id, data.members, data.relationships));
+        }
+      }
 
       // Prompt user to place themselves if not in tree
       if (user?.id) {
@@ -616,7 +711,7 @@ export default function TreeView() {
                 {/* Name */}
                 <text
                   x={NODE_W / 2}
-                  y={58}
+                  y={56}
                   textAnchor="middle"
                   fill="#E8E8EA"
                   fontSize={10}
@@ -624,11 +719,24 @@ export default function TreeView() {
                 >
                   {member.name.length > 14 ? member.name.slice(0, 13) + "…" : member.name}
                 </text>
+                {/* Relation label */}
+                {relLabels.get(member.id) && (
+                  <text
+                    x={NODE_W / 2}
+                    y={68}
+                    textAnchor="middle"
+                    fill={relLabels.get(member.id) === "You" ? "#7C5CFC" : "#9B86FD"}
+                    fontSize={9}
+                    fontWeight={relLabels.get(member.id) === "You" ? 700 : 500}
+                  >
+                    {relLabels.get(member.id)}
+                  </text>
+                )}
                 {/* DOB */}
                 {member.dob && (
                   <text
                     x={NODE_W / 2}
-                    y={70}
+                    y={80}
                     textAnchor="middle"
                     fill="#48484A"
                     fontSize={8}
