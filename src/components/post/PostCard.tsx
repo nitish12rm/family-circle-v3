@@ -6,7 +6,7 @@ import { useAuthStore } from "@/store/authStore";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
-import { formatDistanceToNow } from "date-fns";
+import { formatPostDate } from "@/lib/formatDate";
 import type { Post, PostComment } from "@/types";
 
 const CONTENT_LIMIT = 180;
@@ -154,7 +154,7 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
               {post.author?.name ?? "Unknown"}
             </button>
             <p className="text-xs text-text-faint mt-0.5">
-              {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+              {formatPostDate(post.created_at)}
             </p>
           </div>
           {onDelete && post.author_id === user?.id && (
@@ -303,7 +303,7 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
                           {c.author?.name ?? "Unknown"}
                         </button>
                         <span className="text-[10px] text-text-faint">
-                          {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
+                          {formatPostDate(c.created_at)}
                         </span>
                       </div>
                       <p className="text-sm text-text mt-0.5 whitespace-pre-wrap leading-relaxed">{c.content}</p>

@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
 import PostCard from "@/components/post/PostCard";
-import { formatDistanceToNow } from "date-fns";
+import { formatPostDate } from "@/lib/formatDate";
 import type { Post, PostComment } from "@/types";
 
 export default function PostDetailView({ postId }: { postId: string }) {
@@ -121,7 +121,7 @@ export default function PostDetailView({ postId }: { postId: string }) {
                     <p className="text-sm text-text mt-0.5 leading-relaxed">{c.content}</p>
                   </div>
                   <p className="text-[10px] text-text-faint mt-1 ml-1">
-                    {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
+                    {formatPostDate(c.created_at)}
                   </p>
                 </div>
               </div>
