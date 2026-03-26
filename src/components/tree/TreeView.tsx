@@ -237,11 +237,13 @@ function buildLayout(
     const { nodes: extNodes } = getExtendedFamily(toRelNodes(members, relationships) as any, { rootId: effectiveRoot });
     const positionedIds = new Set<string>();
     const result: NodePosition[] = [];
+    // relatives-tree uses half-unit steps: each left unit = NODE_W/2 + gap
+    const H_STEP = Math.floor(NODE_W / 2) + 20;
     for (const node of extNodes) {
       const member = members.find((m) => m.id === node.id);
       if (!member) continue;
       positionedIds.add(node.id);
-      result.push({ x: node.left * NODE_GAP, y: node.top * GEN_GAP, member });
+      result.push({ x: node.left * H_STEP, y: node.top * GEN_GAP, member });
     }
     // Append any disconnected members below the main tree
     const maxY = result.length > 0 ? Math.max(...result.map((p) => p.y)) : 0;
@@ -252,9 +254,10 @@ function buildLayout(
         extraX += NODE_GAP;
       }
     }
-    // Normalize so minimum x = 0
+    // Normalize both axes — relatives-tree can produce negative top values for ancestors
     const minX = Math.min(...result.map((p) => p.x));
-    if (minX < 0) result.forEach((p) => { p.x -= minX; });
+    const minY = Math.min(...result.map((p) => p.y));
+    result.forEach((p) => { p.x -= minX; p.y -= minY; });
     return result;
   } catch {
     // Fallback: simple row
