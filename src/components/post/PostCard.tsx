@@ -21,7 +21,7 @@ interface PostCardProps {
 }
 
 export default function PostCard({ post, onDelete, navigable = true, onLikeToggle }: PostCardProps) {
-  const { user } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const router = useRouter();
 
   const [likedByMe, setLikedByMe] = useState(post.liked_by_me ?? false);
@@ -324,7 +324,7 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
 
             {/* Pinned input */}
             <div className="shrink-0 border-t border-border px-4 py-3 flex items-center gap-3 pb-safe">
-              <Avatar src={user?.avatar} name={user?.name} size={32} />
+              <Avatar src={profile?.avatar} name={user?.name} size={32} />
               <input
                 value={commentText}
                 onChange={(e) => setCommentText(e.target.value)}
