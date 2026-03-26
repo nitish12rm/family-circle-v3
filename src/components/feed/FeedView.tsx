@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, Image as ImageIcon, X } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
@@ -11,13 +10,12 @@ import Button from "@/components/ui/Button";
 import Modal from "@/components/ui/Modal";
 import Spinner from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Input";
-import { formatDistanceToNow } from "date-fns";
+import PostCard from "@/components/post/PostCard";
 import type { Post } from "@/types";
 
 export default function FeedView() {
-  const router = useRouter();
   const { activeFamilyId } = useFamilyStore();
-  const { user, profile } = useAuthStore();
+  const { profile } = useAuthStore();
   const { showToast } = useUIStore();
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -146,61 +144,18 @@ export default function FeedView() {
       ) : (
         <div className="flex flex-col gap-3">
           {posts.map((post) => (
-            <div
+            <PostCard
               key={post.id}
-              className="bg-bg-2 border border-border rounded-2xl p-4 animate-fade-in"
-            >
-              <div className="flex items-start gap-3">
-                <button onClick={() => router.push(`/profile/${post.author_id}`)}>
-                  <Avatar
-                    src={post.author?.avatar}
-                    name={post.author?.name}
-                    size={36}
-                  />
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => router.push(`/profile/${post.author_id}`)}
-                      className="text-sm font-medium text-text hover:text-accent transition-colors"
-                    >
-                      {post.author?.name ?? "Unknown"}
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-text-faint">
-                        {formatDistanceToNow(new Date(post.created_at), {
-                          addSuffix: true,
-                        })}
-                      </span>
-                      {post.author_id === user?.id && (
-                        <button
-                          onClick={() => handleDelete(post.id)}
-                          className="text-text-faint hover:text-error transition-colors"
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-sm text-text mt-1 whitespace-pre-wrap">
-                    {post.content}
-                  </p>
-                  {post.media_urls?.length > 0 && (
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      {post.media_urls.map((url, i) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={i}
-                          src={url}
-                          alt=""
-                          className="rounded-xl w-full h-40 object-cover"
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+              post={post}
+              onDelete={handleDelete}
+              onLikeToggle={(postId, liked, likeCount) => {
+                setPosts((prev) =>
+                  prev.map((p) =>
+                    p.id === postId ? { ...p, liked_by_me: liked, like_count: likeCount } : p
+                  )
+                );
+              }}
+            />
           ))}
         </div>
       )}

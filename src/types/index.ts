@@ -58,6 +58,18 @@ export interface Post {
   media_urls: string[];
   author?: Profile;
   created_at: string;
+  like_count?: number;
+  comment_count?: number;
+  liked_by_me?: boolean;
+}
+
+export interface PostComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  content: string;
+  author?: { id: string; name: string; avatar?: string };
+  created_at: string;
 }
 
 export interface Message {

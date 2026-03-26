@@ -3,6 +3,8 @@ import { connectDB } from "@/lib/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { Post } from "@/models/Post";
 import { Profile } from "@/models/Profile";
+import { Like } from "@/models/Like";
+import { Comment } from "@/models/Comment";
 import { randomUUID } from "crypto";
 
 export async function GET(
@@ -10,7 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ familyId: string }> }
 ) {
   try {
-    requireAuth(req);
+    const { userId } = requireAuth(req);
     await connectDB();
     const { familyId } = await params;
     const { searchParams } = new URL(req.url);
@@ -23,22 +25,43 @@ export async function GET(
       .limit(limit)
       .lean();
 
-    const authorIds = [...new Set(posts.map((p) => p.author_id))];
-    const authors = await Profile.find({ _id: { $in: authorIds } })
-      .select("_id name avatar email")
-      .lean();
-    const authorMap = Object.fromEntries(authors.map((a) => [a._id, a]));
+    const postIds = posts.map((p) => p._id);
+
+    const [authorProfiles, allLikes, allComments] = await Promise.all([
+      Profile.find({ _id: { $in: [...new Set(posts.map((p) => p.author_id))] } })
+        .select("_id name avatar email")
+        .lean() as Promise<{ _id: string; name: string; avatar?: string }[]>,
+      Like.find({ post_id: { $in: postIds } }).lean() as Promise<{ post_id: string; user_id: string }[]>,
+      Comment.find({ post_id: { $in: postIds } }).lean() as Promise<{ post_id: string }[]>,
+    ]);
+
+    const authorMap = Object.fromEntries(authorProfiles.map((a) => [a._id, a]));
+
+    const likeCountMap: Record<string, number> = {};
+    const likedByMeMap: Record<string, boolean> = {};
+    for (const like of allLikes) {
+      likeCountMap[like.post_id] = (likeCountMap[like.post_id] ?? 0) + 1;
+      if (like.user_id === userId) likedByMeMap[like.post_id] = true;
+    }
+
+    const commentCountMap: Record<string, number> = {};
+    for (const c of allComments) {
+      commentCountMap[c.post_id] = (commentCountMap[c.post_id] ?? 0) + 1;
+    }
 
     return NextResponse.json(
       posts.map((p) => {
-        const a = authorMap[p.author_id] as Record<string, unknown> | undefined;
+        const a = authorMap[p.author_id];
         return {
           id: p._id,
           family_id: p.family_id,
           author_id: p.author_id,
           content: p.content,
-          media_urls: p.media_urls,
+          media_urls: Array.isArray(p.media_urls) ? p.media_urls : [],
           created_at: p.created_at,
+          like_count: likeCountMap[p._id] ?? 0,
+          comment_count: commentCountMap[p._id] ?? 0,
+          liked_by_me: likedByMeMap[p._id] ?? false,
           author: a ? { id: a._id, name: a.name, avatar: a.avatar } : null,
         };
       })
@@ -59,10 +82,7 @@ export async function POST(
     const { content, media_urls } = await req.json();
 
     if (!content?.trim()) {
-      return NextResponse.json(
-        { error: "Content is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Content is required" }, { status: 400 });
     }
 
     const post = await Post.create({
@@ -84,6 +104,9 @@ export async function POST(
       content: post.content,
       media_urls: post.media_urls,
       created_at: post.created_at,
+      like_count: 0,
+      comment_count: 0,
+      liked_by_me: false,
       author: author ? { id: author._id, name: author.name, avatar: author.avatar } : null,
     });
   } catch {

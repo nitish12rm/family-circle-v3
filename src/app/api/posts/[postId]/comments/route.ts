@@ -1,0 +1,84 @@
+import { NextRequest, NextResponse } from "next/server";
+import { connectDB } from "@/lib/mongodb";
+import { requireAuth } from "@/lib/auth";
+import { Comment } from "@/models/Comment";
+import { Post } from "@/models/Post";
+import { Profile } from "@/models/Profile";
+import { randomUUID } from "crypto";
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ postId: string }> }
+) {
+  try {
+    requireAuth(req);
+    await connectDB();
+    const { postId } = await params;
+
+    const comments = await Comment.find({ post_id: postId })
+      .sort({ created_at: 1 })
+      .lean();
+
+    const authorIds = [...new Set(comments.map((c) => c.author_id))];
+    const authors = await Profile.find({ _id: { $in: authorIds } })
+      .select("_id name avatar")
+      .lean() as { _id: string; name: string; avatar?: string }[];
+    const authorMap = Object.fromEntries(authors.map((a) => [a._id, a]));
+
+    return NextResponse.json(
+      comments.map((c) => {
+        const a = authorMap[c.author_id];
+        return {
+          id: c._id,
+          post_id: c.post_id,
+          author_id: c.author_id,
+          content: c.content,
+          created_at: c.created_at,
+          author: a ? { id: a._id, name: a.name, avatar: a.avatar } : null,
+        };
+      })
+    );
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: Promise<{ postId: string }> }
+) {
+  try {
+    const { userId } = requireAuth(req);
+    await connectDB();
+    const { postId } = await params;
+    const { content } = await req.json();
+
+    if (!content?.trim()) {
+      return NextResponse.json({ error: "Content required" }, { status: 400 });
+    }
+
+    const post = await Post.findById(postId).lean() as { family_id: string } | null;
+    if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const comment = await Comment.create({
+      _id: randomUUID(),
+      post_id: postId,
+      family_id: post.family_id,
+      author_id: userId,
+      content: content.trim(),
+    });
+
+    const author = await Profile.findById(userId).select("_id name avatar").lean() as { _id: string; name: string; avatar?: string } | null;
+
+    return NextResponse.json({
+      id: comment._id,
+      post_id: comment.post_id,
+      author_id: comment.author_id,
+      content: comment.content,
+      created_at: comment.created_at,
+      author: author ? { id: author._id, name: author.name, avatar: author.avatar } : null,
+    });
+  } catch {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+}

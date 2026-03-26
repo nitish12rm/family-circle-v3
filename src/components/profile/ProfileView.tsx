@@ -15,7 +15,6 @@ import Button from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import DocPreviewModal from "@/components/documents/DocPreviewModal";
 import { compressImage } from "@/lib/imageCompression";
-import { formatDistanceToNow } from "date-fns";
 import type { Profile, Document } from "@/types";
 import { DOCUMENT_CATEGORIES } from "@/types";
 
@@ -71,7 +70,6 @@ export default function ProfileView() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
-  const [selectedPost, setSelectedPost] = useState<OwnPost | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -270,7 +268,7 @@ export default function ProfileView() {
         </button>
       </div>
 
-      {/* Posts feed */}
+      {/* Posts grid — Instagram 3-column */}
       {tab === "posts" && (
         posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-2">
@@ -278,37 +276,34 @@ export default function ProfileView() {
             <p className="text-text-muted text-sm">No posts yet.</p>
           </div>
         ) : (
-          <div className="px-4 py-4 flex flex-col gap-3">
+          <div className="grid grid-cols-3 gap-px bg-border">
             {posts.map((post) => {
               const media = post.media_urls ?? [];
               return (
                 <button
                   key={post.id}
-                  onClick={() => setSelectedPost(post)}
-                  className="bg-bg-2 border border-border rounded-2xl p-4 text-left w-full hover:border-accent/40 transition-colors"
+                  onClick={() => router.push(`/post/${post.id}`)}
+                  className="aspect-square bg-bg-3 overflow-hidden relative group"
                 >
-                  <div className="flex items-center gap-3 mb-3">
-                    <Avatar src={profile?.avatar} name={profile?.name ?? ""} size={36} />
-                    <div>
-                      <p className="text-sm font-medium text-text">{profile?.name}</p>
-                      <p className="text-xs text-text-faint">
-                        {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-sm text-text whitespace-pre-wrap line-clamp-3">{post.content}</p>
-                  {media.length > 0 && (
-                    <div className="mt-3 relative">
+                  {media.length > 0 ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={media[0]}
                         alt=""
-                        className="rounded-xl w-full h-48 object-cover"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       />
                       {media.length > 1 && (
-                        <div className="absolute top-2 right-2 bg-black/60 rounded-full px-2 py-0.5 text-[10px] text-white font-medium">
-                          +{media.length - 1} more
+                        <div className="absolute top-1.5 right-1.5 w-4 h-4 bg-black/60 rounded flex items-center justify-center">
+                          <Grid3X3 size={8} className="text-white" />
                         </div>
                       )}
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center p-2 bg-bg-2 group-hover:bg-bg-3 transition-colors">
+                      <p className="text-[10px] text-text-muted text-center line-clamp-4 leading-relaxed">
+                        {post.content}
+                      </p>
                     </div>
                   )}
                 </button>
@@ -317,31 +312,6 @@ export default function ProfileView() {
           </div>
         )
       )}
-
-      {/* Full post modal */}
-      <Modal open={!!selectedPost} onClose={() => setSelectedPost(null)} title="">
-        {selectedPost && (
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
-              <Avatar src={profile?.avatar} name={profile?.name ?? ""} size={36} />
-              <div>
-                <p className="text-sm font-semibold text-text">{profile?.name}</p>
-                <p className="text-xs text-text-faint">
-                  {formatDistanceToNow(new Date(selectedPost.created_at), { addSuffix: true })}
-                </p>
-              </div>
-            </div>
-            <p className="text-sm text-text whitespace-pre-wrap leading-relaxed">{selectedPost.content}</p>
-            {(selectedPost.media_urls ?? []).length > 0 && (
-              <div className={`grid gap-2 ${selectedPost.media_urls.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
-                {selectedPost.media_urls.map((url, i) => (
-                  <img key={i} src={url} alt="" className="rounded-xl w-full h-48 object-cover" />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
 
       {/* Documents tab */}
       {tab === "documents" && (
