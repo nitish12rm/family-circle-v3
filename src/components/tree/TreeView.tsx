@@ -237,13 +237,12 @@ function buildLayout(
     const { nodes: extNodes } = getExtendedFamily(toRelNodes(members, relationships) as any, { rootId: effectiveRoot });
     const positionedIds = new Set<string>();
     const result: NodePosition[] = [];
-    // relatives-tree uses half-unit steps: each left unit = NODE_W/2 + gap
-    const H_STEP = Math.floor(NODE_W / 2) + 20;
     for (const node of extNodes) {
       const member = members.find((m) => m.id === node.id);
       if (!member) continue;
       positionedIds.add(node.id);
-      result.push({ x: node.left * H_STEP, y: node.top * GEN_GAP, member });
+      // relatives-tree uses half-unit steps; NODE_GAP gives correct per-unit spacing
+      result.push({ x: node.left * NODE_GAP, y: node.top * GEN_GAP, member });
     }
     // Append any disconnected members below the main tree
     const maxY = result.length > 0 ? Math.max(...result.map((p) => p.y)) : 0;
