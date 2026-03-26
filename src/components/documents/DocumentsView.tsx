@@ -110,7 +110,7 @@ export default function DocumentsView() {
     if (!f) return;
     if (f.type.startsWith("image/") && f.type !== "image/gif") {
       setCompressing(true);
-      const compressed = await compressImage(f);
+      const compressed = await compressImage(f, true);
       setFile(compressed);
       if (!docName) setDocName(compressed.name.replace(/\.[^.]+$/, ""));
       setCompressing(false);

@@ -6,13 +6,19 @@
  * - Falls back to original file if compressed version is larger
  * - Non-image files and GIFs are returned unchanged
  */
-export async function compressImage(file: File): Promise<File> {
+export async function compressImage(file: File, preserveFormat = false): Promise<File> {
   const MAX_DIMENSION = 2048;
   const QUALITY = 0.82;
 
   if (!file.type.startsWith("image/") || file.type === "image/gif") {
     return file;
   }
+
+  // When preserving format, only resize — keep original mime type and extension
+  const outputMime = preserveFormat ? file.type : "image/webp";
+  const outputExt = preserveFormat
+    ? file.name.match(/\.[^.]+$/)?.[0] ?? ""
+    : ".webp";
 
   return new Promise((resolve) => {
     const img = new Image();
@@ -36,7 +42,6 @@ export async function compressImage(file: File): Promise<File> {
       const ctx = canvas.getContext("2d");
       if (!ctx) { resolve(file); return; }
 
-      // White background for JPEGs that have no transparency
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
@@ -49,12 +54,12 @@ export async function compressImage(file: File): Promise<File> {
           }
           const compressed = new File(
             [blob],
-            file.name.replace(/\.[^.]+$/, ".webp"),
-            { type: "image/webp" }
+            file.name.replace(/\.[^.]+$/, outputExt),
+            { type: outputMime }
           );
           resolve(compressed);
         },
-        "image/webp",
+        outputMime,
         QUALITY
       );
     };
