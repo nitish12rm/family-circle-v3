@@ -31,8 +31,8 @@ export async function POST(
     await connectDB();
     const { familyId } = await params;
     const { anchor_member_id, relationship } = await req.json() as {
-      anchor_member_id: string;
-      relationship: RelType;
+      anchor_member_id: string | null;
+      relationship: RelType | null;
     };
 
     // Already placed?
@@ -41,6 +41,19 @@ export async function POST(
 
     const profile = await Profile.findById(userId).select("name").lean() as { name: string } | null;
     if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+
+    // Root node — first member in the tree
+    if (!anchor_member_id || !relationship) {
+      const newMember = await TreeMember.create({
+        _id: randomUUID(),
+        family_id: familyId,
+        profile_id: userId,
+        name: profile.name,
+        is_placeholder: false,
+        is_deceased: false,
+      });
+      return NextResponse.json({ member: newMember, placeholders: [] });
+    }
 
     const anchor = await TreeMember.findOne({ _id: anchor_member_id, family_id: familyId }).lean() as { _id: string } | null;
     if (!anchor) return NextResponse.json({ error: "Anchor not found" }, { status: 404 });

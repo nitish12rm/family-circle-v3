@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import { useUIStore } from "@/store/uiStore";
 import type { TreeMember, TreeRelationship } from "@/types";
 
-type Step = "anchor" | "relation" | "preview";
+type Step = "root" | "anchor" | "relation" | "preview";
 type Relation = "child" | "parent" | "sibling" | "spouse";
 
 const RELATIONS: {
@@ -108,9 +108,8 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
       .get<TreeData>(`/api/families/${familyId}/tree`)
       .then((data) => {
         setTreeData(data);
-        // Skip entirely if tree is empty
         if (data.members.filter((m) => !m.is_placeholder).length === 0) {
-          onSkip();
+          setStep("root");
         }
       })
       .catch(() => onSkip())
@@ -126,6 +125,23 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
   const handleClose = () => {
     reset();
     onSkip();
+  };
+
+  const handleConfirmRoot = async () => {
+    setPlacing(true);
+    try {
+      await api.post(`/api/families/${familyId}/tree/place-member`, {
+        anchor_member_id: null,
+        relationship: null,
+      });
+      reset();
+      showToast("You've been added to the family tree!", "success");
+      onComplete();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Failed to place in tree", "error");
+    } finally {
+      setPlacing(false);
+    }
   };
 
   const handleConfirm = async () => {
@@ -157,6 +173,28 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
         </div>
       ) : (
         <>
+          {/* ── Root: first member ────────────────────────────────── */}
+          {step === "root" && (
+            <div className="flex flex-col gap-4 items-center text-center">
+              <div className="w-14 h-14 bg-accent-muted border border-accent/30 rounded-2xl flex items-center justify-center">
+                <span className="text-3xl">🌱</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-text">You&apos;ll be the first person in this family tree.</p>
+                <p className="text-xs text-text-muted mt-1">Others who join can connect to you from here.</p>
+              </div>
+              <Button onClick={handleConfirmRoot} loading={placing} className="w-full">
+                <Check size={14} /> Add me to the tree
+              </Button>
+              <button
+                onClick={handleClose}
+                className="text-xs text-text-muted hover:text-text transition-colors"
+              >
+                Skip — I&apos;ll do this later
+              </button>
+            </div>
+          )}
+
           {/* ── Step 1: Pick anchor ───────────────────────────────── */}
           {step === "anchor" && (
             <div className="flex flex-col gap-3">
