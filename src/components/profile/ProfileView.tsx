@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Camera, Grid3X3, FileText, GraduationCap, Target, Calendar,
-  Eye, Download, Lock, Globe, ChevronDown, Search, Settings, X, Heart, MessageCircle,
+  Eye, Download, Lock, Globe, ChevronDown, Search, ArrowLeft, X, Heart, MessageCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -169,14 +169,14 @@ export default function ProfileView() {
   return (
     <div className="max-w-xl mx-auto pb-6">
       {/* Header bar */}
-      <div className="flex items-center justify-between px-4 py-3 sticky top-0 bg-bg z-10 border-b border-border">
-        <h1 className="font-semibold text-text text-base">{profile?.name ?? "Profile"}</h1>
+      <div className="flex items-center gap-3 px-4 py-3 sticky top-0 bg-bg z-10 border-b border-border">
         <button
-          onClick={() => router.push("/family")}
-          className="p-1.5 rounded-lg hover:bg-bg-2 text-text-muted hover:text-text transition-colors"
+          onClick={() => router.back()}
+          className="p-1.5 rounded-lg hover:bg-bg-2 text-text-muted hover:text-text transition-colors shrink-0"
         >
-          <Settings size={18} />
+          <ArrowLeft size={18} />
         </button>
+        <h1 className="font-semibold text-text text-base flex-1">{profile?.name ?? "Profile"}</h1>
       </div>
 
       {/* Profile header — Instagram style */}

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { Upload, FileText, Trash2, Download, X, Eye, Lock, Globe, ChevronDown, Search } from "lucide-react";
+import { Upload, FileText, Trash2, Download, X, Eye, Lock, Globe, ChevronDown, Search, ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -31,6 +32,7 @@ function fileIcon(mimeType: string) {
 }
 
 export default function DocumentsView() {
+  const router = useRouter();
   const { activeFamilyId } = useFamilyStore();
   const { user } = useAuthStore();
   const { showToast } = useUIStore();
@@ -176,11 +178,19 @@ export default function DocumentsView() {
     <div className="max-w-xl mx-auto px-4 py-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <div>
-          <h1 className="text-lg font-semibold text-text">My Documents</h1>
-          {!loading && (
-            <p className="text-xs text-text-faint mt-0.5">{myDocs.length} document{myDocs.length !== 1 ? "s" : ""}</p>
-          )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.back()}
+            className="p-1.5 rounded-lg hover:bg-bg-2 text-text-muted hover:text-text transition-colors shrink-0"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h1 className="text-lg font-semibold text-text">My Documents</h1>
+            {!loading && (
+              <p className="text-xs text-text-faint mt-0.5">{myDocs.length} document{myDocs.length !== 1 ? "s" : ""}</p>
+            )}
+          </div>
         </div>
         <Button size="sm" onClick={() => setUploadOpen(true)}>
           <Upload size={14} /> Upload

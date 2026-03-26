@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Copy, Check, UserPlus, Trash2, Users, ChevronRight, LogOut } from "lucide-react";
+import { Plus, Copy, Check, UserPlus, Trash2, Users, ChevronRight, LogOut, ArrowLeft } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -198,7 +198,15 @@ export default function FamilyView() {
     <div className="max-w-xl mx-auto px-4 py-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-text">Family</h1>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => router.back()}
+            className="p-1.5 rounded-lg hover:bg-bg-2 text-text-muted hover:text-text transition-colors shrink-0"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <h1 className="text-lg font-semibold text-text">Family</h1>
+        </div>
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => setJoinOpen(true)}>
             <UserPlus size={14} /> Join
