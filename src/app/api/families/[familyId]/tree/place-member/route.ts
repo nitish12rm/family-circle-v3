@@ -7,6 +7,8 @@ import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
 
 type RelType = "parent" | "child" | "spouse" | "sibling";
+type PlaceRelType = RelType | "cousin" | "uncle_aunt" | "niece_nephew" | "none";
+
 const INVERSE: Record<RelType, RelType> = {
   parent: "child",
   child: "parent",
@@ -32,7 +34,7 @@ export async function POST(
     const { familyId } = await params;
     const { anchor_member_id, relationship } = await req.json() as {
       anchor_member_id: string | null;
-      relationship: RelType | null;
+      relationship: PlaceRelType | null;
     };
 
     // Already placed?
@@ -42,8 +44,8 @@ export async function POST(
     const profile = await Profile.findById(userId).select("name gender avatar").lean() as unknown as { name: string; gender?: string; avatar?: string } | null;
     if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
-    // Root node — first member in the tree
-    if (!anchor_member_id || !relationship) {
+    // Root node OR "none" placement — no connection needed
+    if (!anchor_member_id || !relationship || relationship === "none") {
       const newMember = await TreeMember.create({
         _id: randomUUID(),
         family_id: familyId,
@@ -151,6 +153,62 @@ export async function POST(
       for (const cr of childRels) {
         addRel(newMemberId, cr.related_member_id, "parent");
       }
+
+    // ── UNCLE/AUNT: user is a sibling of anchor's parent ─────────────────────
+    } else if (relationship === "uncle_aunt") {
+      const parentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "child",
+      }).lean() as unknown as { related_member_id: string }[];
+
+      if (parentRels.length > 0) {
+        // Become sibling of anchor's existing parent
+        addRel(newMemberId, parentRels[0].related_member_id, "sibling");
+      } else {
+        // Create a placeholder parent for anchor; I become sibling of that placeholder
+        const phParentId = addPlaceholder("Unknown Parent");
+        addRel(phParentId, anchorId, "parent");
+        addRel(newMemberId, phParentId, "sibling");
+      }
+
+    // ── NIECE/NEPHEW: user is a child of anchor's sibling ────────────────────
+    } else if (relationship === "niece_nephew") {
+      const siblingRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "sibling",
+      }).lean() as unknown as { related_member_id: string }[];
+
+      // Create a placeholder sibling of the anchor (the "unknown parent" side)
+      const phSiblingId = addPlaceholder("Unknown Parent");
+      addRel(phSiblingId, anchorId, "sibling");
+      // Inherit any existing siblings too so the placeholder connects the group
+      for (const sr of siblingRels) {
+        addRel(phSiblingId, sr.related_member_id, "sibling");
+      }
+      addRel(phSiblingId, newMemberId, "parent");
+
+    // ── COUSIN: our parents are siblings ─────────────────────────────────────
+    } else if (relationship === "cousin") {
+      const parentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "child",
+      }).lean() as unknown as { related_member_id: string }[];
+
+      // My placeholder parent
+      const myParentId = addPlaceholder("Unknown Parent");
+      addRel(myParentId, newMemberId, "parent");
+
+      if (parentRels.length > 0) {
+        // My placeholder parent is a sibling of anchor's existing parent
+        addRel(myParentId, parentRels[0].related_member_id, "sibling");
+      } else {
+        // Neither side has parents yet — create placeholder for anchor's parent too
+        const anchorParentId = addPlaceholder("Unknown Parent");
+        addRel(anchorParentId, anchorId, "parent");
+        addRel(myParentId, anchorParentId, "sibling");
+      }
+
+    // ── NONE: place without any connection ───────────────────────────────────
+    // (user is in the family but relationship not yet known — floating node)
+    } else if (relationship === "none") {
+      // No relationships added — node exists unconnected, can be linked later
     }
 
     // Persist everything

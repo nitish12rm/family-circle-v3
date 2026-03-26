@@ -11,28 +11,28 @@ import { useAuthStore } from "@/store/authStore";
 import type { TreeMember, TreeRelationship } from "@/types";
 
 type Step = "root" | "anchor" | "relation" | "preview";
-type Relation = "child" | "parent" | "sibling" | "spouse";
+type Relation = "child" | "parent" | "sibling" | "spouse" | "cousin" | "uncle_aunt" | "niece_nephew" | "none";
 
-function getRelations(gender?: string): { value: Relation; label: string; desc: string; emoji: string }[] {
+function getRelations(gender?: string): { value: Relation; label: string; desc: string; emoji: string; extended?: boolean }[] {
   const m = gender === "male";
   const f = gender === "female";
   return [
     {
       value: "child",
       label: m ? "Their son" : f ? "Their daughter" : "Their child",
-      desc: m ? "I am their son" : f ? "I am their daughter" : "I am their son / daughter",
+      desc: m ? "I am their son" : f ? "I am their daughter" : "I am their child",
       emoji: m ? "👦" : f ? "👧" : "🧒",
     },
     {
       value: "parent",
       label: m ? "Their father" : f ? "Their mother" : "Their parent",
-      desc: m ? "I am their father" : f ? "I am their mother" : "I am their father / mother",
+      desc: m ? "I am their father" : f ? "I am their mother" : "I am their parent",
       emoji: m ? "👨" : f ? "👩" : "🧑‍🦳",
     },
     {
       value: "sibling",
       label: m ? "Their brother" : f ? "Their sister" : "Their sibling",
-      desc: m ? "I am their brother" : f ? "I am their sister" : "I am their brother / sister",
+      desc: m ? "I am their brother" : f ? "I am their sister" : "I am their sibling",
       emoji: m ? "👱‍♂️" : f ? "👱‍♀️" : "🧑‍🤝‍🧑",
     },
     {
@@ -40,6 +40,34 @@ function getRelations(gender?: string): { value: Relation; label: string; desc: 
       label: m ? "Their husband" : f ? "Their wife" : "Their spouse",
       desc: m ? "I am their husband" : f ? "I am their wife" : "I am their partner",
       emoji: m ? "🤵" : f ? "👰" : "💍",
+    },
+    {
+      value: "uncle_aunt",
+      label: m ? "Their uncle" : f ? "Their aunt" : "Their uncle / aunt",
+      desc: "I am a sibling of their parent",
+      emoji: m ? "👨‍🦳" : f ? "👩‍🦳" : "🧓",
+      extended: true,
+    },
+    {
+      value: "niece_nephew",
+      label: m ? "Their nephew" : f ? "Their niece" : "Their niece / nephew",
+      desc: "I am a child of their sibling",
+      emoji: m ? "👦" : f ? "👧" : "🧒",
+      extended: true,
+    },
+    {
+      value: "cousin",
+      label: "Their cousin",
+      desc: "Our parents are siblings",
+      emoji: "🤝",
+      extended: true,
+    },
+    {
+      value: "none",
+      label: "Not sure yet",
+      desc: "Add me — I'll connect later",
+      emoji: "➕",
+      extended: true,
     },
   ];
 }
@@ -107,6 +135,32 @@ function buildPreview(
       const names = children.map((cr) => find(cr.related_member_id)?.name ?? "Unknown").join(", ");
       lines.push(`Also linked as parent of: ${names}.`);
     }
+
+  } else if (relation === "uncle_aunt") {
+    const parentRels = rels(anchor.id, "child");
+    if (parentRels.length > 0) {
+      const parent = find(parentRels[0].related_member_id);
+      lines.push(`Linked as sibling of ${anchor.name}'s parent (${parent?.name ?? "existing parent"}).`);
+    } else {
+      lines.push(`Linked as sibling of ${anchor.name}'s parent.`);
+      placeholders.push(`Unknown Parent — ${anchor.name}'s parent`);
+    }
+
+  } else if (relation === "niece_nephew") {
+    lines.push(`Linked as child of ${anchor.name}'s sibling.`);
+    placeholders.push(`Unknown Parent — sibling of ${anchor.name}`);
+
+  } else if (relation === "cousin") {
+    const parentRels = rels(anchor.id, "child");
+    lines.push(`Linked as cousin of ${anchor.name} (our parents are siblings).`);
+    placeholders.push("Unknown Parent — your parent (placeholder)");
+    if (parentRels.length === 0) {
+      placeholders.push(`Unknown Parent — ${anchor.name}'s parent (placeholder)`);
+    }
+
+  } else if (relation === "none") {
+    lines.push("Added to the tree without a direct connection.");
+    lines.push("You or another member can link you to others later.");
   }
 
   return { lines, placeholders };
@@ -170,6 +224,23 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
     }
   };
 
+  const handleConfirmNone = async (_rel?: string) => {
+    setPlacing(true);
+    try {
+      await api.post(`/api/families/${familyId}/tree/place-member`, {
+        anchor_member_id: null,
+        relationship: "none",
+      });
+      reset();
+      showToast("Added to the family tree! Connect yourself to others when ready.", "success");
+      onComplete();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : "Failed to place in tree", "error");
+    } finally {
+      setPlacing(false);
+    }
+  };
+
   const handleConfirm = async () => {
     if (!anchor || !relation) return;
     setPlacing(true);
@@ -189,7 +260,8 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
   };
 
   const selectableMembers = treeData.members.filter((m) => !m.is_placeholder);
-  const preview = anchor && relation ? buildPreview(anchor, relation, treeData) : null;
+  // "none" skips preview — place immediately when selected
+  const preview = anchor && relation && relation !== "none" ? buildPreview(anchor, relation, treeData) : null;
 
   return (
     <Modal open={open} onClose={handleClose} title="Your place in the family tree">
@@ -262,23 +334,40 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
                 <span className="font-medium text-text">{anchor.name}</span>?
               </p>
 
+              {/* Direct relationships — 2×2 grid */}
               <div className="grid grid-cols-2 gap-2">
-                {RELATIONS.map((r) => (
+                {RELATIONS.filter((r) => !r.extended).map((r) => (
                   <button
                     key={r.value}
-                    onClick={() => {
-                      setRelation(r.value);
-                      setStep("preview");
-                    }}
+                    onClick={() => { setRelation(r.value); setStep("preview"); }}
                     className="flex flex-col items-center gap-2 p-4 bg-bg-3 hover:bg-bg-4 border border-border hover:border-accent rounded-2xl transition-all"
                   >
                     <span className="text-2xl">{r.emoji}</span>
                     <span className="text-sm font-semibold text-text">{r.label}</span>
-                    <span className="text-[11px] text-text-muted text-center leading-tight">
-                      {r.desc}
-                    </span>
+                    <span className="text-[11px] text-text-muted text-center leading-tight">{r.desc}</span>
                   </button>
                 ))}
+              </div>
+
+              {/* Extended relationships — compact list */}
+              <div className="border-t border-border pt-2">
+                <p className="text-[10px] text-text-faint uppercase tracking-wider mb-2">Extended family</p>
+                <div className="flex flex-col gap-1">
+                  {RELATIONS.filter((r) => r.extended).map((r) => (
+                    <button
+                      key={r.value}
+                      onClick={() => { setRelation(r.value); if (r.value === "none") { handleConfirmNone(r.value); } else { setStep("preview"); } }}
+                      className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-bg-3 border border-transparent hover:border-border transition-all text-left"
+                    >
+                      <span className="text-lg w-6 text-center shrink-0">{r.emoji}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-medium text-text">{r.label}</span>
+                        <span className="text-[11px] text-text-faint ml-2">{r.desc}</span>
+                      </div>
+                      <ChevronRight size={13} className="text-text-faint shrink-0" />
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <button
