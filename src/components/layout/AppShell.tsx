@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import TopBar from "./TopBar";
 import BottomNav from "./BottomNav";
 import ToastContainer from "@/components/ui/Toast";
+import PWAInstallBanner from "@/components/ui/PWAInstallBanner";
 import Spinner from "@/components/ui/Spinner";
 import type { Profile, Family } from "@/types";
 
@@ -68,6 +69,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         {children}
       </main>
       <BottomNav />
+      <PWAInstallBanner />
       <ToastContainer />
     </div>
   );
