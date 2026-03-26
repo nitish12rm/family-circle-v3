@@ -8,7 +8,8 @@ import { randomUUID } from "crypto";
 
 type RelType = "parent" | "child" | "spouse" | "sibling" | "step_parent" | "step_child";
 type ConnectRelType =
-  | "parent" | "child" | "spouse" | "sibling" | "step_parent"
+  | "parent" | "child" | "spouse" | "sibling"
+  | "step_parent" | "step_child"
   | "uncle_aunt" | "niece_nephew" | "cousin" | "2nd_cousin" | "3rd_cousin";
 
 const INVERSE: Record<RelType, RelType> = {
@@ -171,8 +172,12 @@ export async function POST(
         addRel(newMemberId, cr.related_member_id, "parent");
       }
 
-    // ── STEP_PARENT: I am a step-parent of the anchor ────────────────────────
+    // ── STEP_PARENT: anchor IS my step-parent, I am their step-child ─────────
     } else if (relationship === "step_parent") {
+      addRel(anchorId, newMemberId, "step_parent");
+
+    // ── STEP_CHILD: anchor IS my step-child, I am their step-parent ──────────
+    } else if (relationship === "step_child") {
       addRel(newMemberId, anchorId, "step_parent");
 
     // ── UNCLE / AUNT: I am a sibling of the anchor's parent ──────────────────

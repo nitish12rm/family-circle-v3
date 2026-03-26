@@ -131,35 +131,44 @@ function RelChip({
 interface ConnectRelOption { value: string; label: string; desc: string }
 interface ConnectCategory { key: string; emoji: string; label: string; subtitle: string; rels: ConnectRelOption[] }
 
+// Labels answer "What is [Name] to you?" — values map to what the connect endpoint expects.
+// m/f = anchor's gender (the person being viewed).
 function getConnectCategories(gender?: string): ConnectCategory[] {
   const m = gender === "male", f = gender === "female";
   return [
     {
       key: "immediate", emoji: "👨‍👩‍👧", label: "Immediate Family",
-      subtitle: "Parent · child · sibling · spouse",
+      subtitle: "Parent · child · sibling · spouse · step",
       rels: [
-        { value: "child",      label: "Their parent",                                           desc: "I am their parent" },
-        { value: "parent",     label: m ? "Their son"      : f ? "Their daughter"  : "Their child",   desc: m ? "I am their son"      : f ? "I am their daughter"  : "I am their child" },
-        { value: "sibling",    label: m ? "Their brother"  : f ? "Their sister"    : "Their sibling", desc: m ? "I am their brother"  : f ? "I am their sister"    : "I am their sibling" },
-        { value: "spouse",     label: m ? "Their husband"  : f ? "Their wife"      : "Their spouse",  desc: m ? "I am their husband"  : f ? "I am their wife"      : "I am their partner" },
-        { value: "step_parent",label: m ? "Their step-father" : f ? "Their step-mother" : "Their step-parent", desc: "Step relationship (not biological)" },
+        // "child" endpoint: I become their child → they are MY parent
+        { value: "child",       label: m ? "My father"       : f ? "My mother"       : "My parent",       desc: "They are your parent — you are their child" },
+        // "parent" endpoint: I become their parent → they are MY child
+        { value: "parent",      label: m ? "My son"          : f ? "My daughter"     : "My child",        desc: "They are your child — you are their parent" },
+        { value: "sibling",     label: m ? "My brother"      : f ? "My sister"       : "My sibling",      desc: "You share the same parents" },
+        { value: "spouse",      label: m ? "My husband"      : f ? "My wife"         : "My partner",      desc: "They are your spouse / partner" },
+        // "step_parent" endpoint (flipped): anchor IS my step-parent → I am their step-child
+        { value: "step_parent", label: m ? "My step-father"  : f ? "My step-mother"  : "My step-parent",  desc: "They are your step-parent — you are their step-child" },
+        // "step_child" endpoint: anchor IS my step-child → I am their step-parent
+        { value: "step_child",  label: m ? "My step-son"     : f ? "My step-daughter": "My step-child",   desc: "They are your step-child — you are their step-parent" },
       ],
     },
     {
       key: "extended", emoji: "👪", label: "Extended Family",
       subtitle: "Uncle · aunt · niece · nephew · cousin",
       rels: [
-        { value: "uncle_aunt",   label: m ? "Their uncle"   : f ? "Their aunt"   : "Their uncle / aunt",   desc: "I am a sibling of their parent" },
-        { value: "niece_nephew", label: m ? "Their nephew"  : f ? "Their niece"  : "Their niece / nephew", desc: "I am a child of their sibling" },
-        { value: "cousin",       label: "Their 1st cousin",                                                 desc: "Our parents are siblings" },
+        // "niece_nephew" endpoint: I become their niece/nephew → they are MY uncle/aunt
+        { value: "niece_nephew", label: m ? "My uncle"       : f ? "My aunt"         : "My uncle / aunt",  desc: "They are a sibling of your parent" },
+        // "uncle_aunt" endpoint: I become their uncle/aunt → they are MY niece/nephew
+        { value: "uncle_aunt",   label: m ? "My nephew"      : f ? "My niece"        : "My niece / nephew", desc: "They are a child of your sibling" },
+        { value: "cousin",       label: "My 1st cousin",     desc: "Your parents are siblings" },
       ],
     },
     {
       key: "distant", emoji: "🌐", label: "Distant Relative",
-      subtitle: "2nd cousin and beyond",
+      subtitle: "Share a common ancestor further back",
       rels: [
-        { value: "2nd_cousin", label: "Their 2nd cousin",          desc: "Our grandparents are siblings" },
-        { value: "3rd_cousin", label: "Their 3rd cousin / distant", desc: "Our great-grandparents are siblings" },
+        { value: "2nd_cousin",  label: "My 2nd cousin",      desc: "Your grandparents are siblings" },
+        { value: "3rd_cousin",  label: "My 3rd cousin",      desc: "Your great-grandparents are siblings" },
       ],
     },
   ];
@@ -192,11 +201,13 @@ export default function TreeMemberModal({
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [connectRel, setConnectRel] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
+  const [justConnected, setJustConnected] = useState(false);
 
   // Reset connect state when a different member is opened
   useEffect(() => {
     setConnectRel(null);
     setOpenGroups(new Set());
+    setJustConnected(false);
   }, [member?.id]);
   const [form, setForm] = useState({
     name: "",
@@ -311,8 +322,9 @@ export default function TreeMemberModal({
         target_member_id: member.id,
         relationship: rel,
       });
-      onRelAdded();
+      setJustConnected(true);
       setConnectRel(null);
+      onRelAdded();
       showToast("Relationship added", "success");
     } catch {
       showToast("Failed to add relationship", "error");
@@ -344,8 +356,8 @@ export default function TreeMemberModal({
           (r.member_id === member.id && r.related_member_id === myMemberId)
       )
     : false;
-  // Show "add connection" panel when: I'm on the tree, this isn't my own node, no direct rel yet
-  const showConnect = !!myMemberId && member.id !== myMemberId && !hasDirectRel && !member.is_placeholder;
+  // Hide panel if: not on tree, own node, already related (direct or BFS-computed), placeholder, or just connected
+  const showConnect = !!myMemberId && member.id !== myMemberId && !hasDirectRel && !relLabel && !justConnected && !member.is_placeholder;
 
   // Build typed rel entries (include step types)
   const parentEntries: RelEntry[] = relationships
@@ -596,8 +608,10 @@ export default function TreeMemberModal({
                               {isPending ? (
                                 <div className="flex flex-col gap-2">
                                   <p className="text-xs text-text-muted">
-                                    Confirm: I am{" "}
-                                    <span className="font-medium text-text">{member.name.split(" ")[0]}&apos;s {r.label.toLowerCase().replace("their ", "")}</span>
+                                    Set{" "}
+                                    <span className="font-medium text-text">{member.name.split(" ")[0]}</span>
+                                    {" "}as{" "}
+                                    <span className="font-medium text-text">{r.label.toLowerCase()}</span>?
                                   </p>
                                   <div className="flex gap-2">
                                     <Button
