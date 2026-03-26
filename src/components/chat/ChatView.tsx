@@ -36,7 +36,11 @@ export default function ChatView() {
         if (initial) {
           setMessages(data);
         } else {
-          setMessages((prev) => [...prev, ...data]);
+          setMessages((prev) => {
+            const seen = new Set(prev.map((m) => m.id));
+            const fresh = data.filter((m) => !seen.has(m.id));
+            return fresh.length ? [...prev, ...fresh] : prev;
+          });
         }
       }
     } catch {
