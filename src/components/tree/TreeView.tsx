@@ -10,12 +10,14 @@ import {
 } from "react";
 import { Plus, ZoomIn, ZoomOut, Maximize2, X, Save } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
+import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
 import { api } from "@/lib/api";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
+import PlaceMemberModal from "@/components/tree/PlaceMemberModal";
 import type { TreeMember, TreeRelationship } from "@/types";
 
 interface TreeData {
@@ -108,6 +110,7 @@ function buildLayout(
 
 export default function TreeView() {
   const { activeFamilyId } = useFamilyStore();
+  const { user } = useAuthStore();
   const { showToast } = useUIStore();
   const [treeData, setTreeData] = useState<TreeData>({ members: [], relationships: [] });
   const [loading, setLoading] = useState(true);
@@ -121,6 +124,9 @@ export default function TreeView() {
   const touchStart = useRef<{ x: number; y: number; dist?: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Placement
+  const [showPlacement, setShowPlacement] = useState(false);
 
   // Modals
   const [selectedMember, setSelectedMember] = useState<TreeMember | null>(null);
@@ -137,6 +143,14 @@ export default function TreeView() {
       setTreeData(data);
       const pos = buildLayout(data.members, data.relationships);
       setPositions(pos);
+
+      // Prompt user to place themselves if not in tree
+      if (user?.id) {
+        const alreadyIn = data.members.some(
+          (m) => m.profile_id === user.id && !m.is_placeholder
+        );
+        if (!alreadyIn) setShowPlacement(true);
+      }
 
       // Center view
       if (pos.length > 0 && containerRef.current) {
@@ -531,6 +545,16 @@ export default function TreeView() {
           </Button>
         </div>
       </Modal>
+
+      {/* Smart placement modal */}
+      {activeFamilyId && (
+        <PlaceMemberModal
+          open={showPlacement}
+          familyId={activeFamilyId}
+          onComplete={() => { setShowPlacement(false); loadTree(); }}
+          onSkip={() => setShowPlacement(false)}
+        />
+      )}
 
       {/* Add relationship modal */}
       <Modal open={addRelOpen} onClose={() => setAddRelOpen(false)} title="Link People">
