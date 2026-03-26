@@ -13,6 +13,7 @@ import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
 import { api } from "@/lib/api";
+import { formatDOB } from "@/lib/formatDate";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -783,7 +784,7 @@ export default function TreeView() {
                     fill="#48484A"
                     fontSize={8}
                   >
-                    {member.dob}
+                    {formatDOB(member.dob)}
                   </text>
                 )}
                 {/* Deceased indicator */}

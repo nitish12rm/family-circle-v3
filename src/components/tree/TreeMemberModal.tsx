@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import Avatar from "@/components/ui/Avatar";
 import { Input } from "@/components/ui/Input";
 import { api } from "@/lib/api";
+import { formatDOB } from "@/lib/formatDate";
 import { useUIStore } from "@/store/uiStore";
 import type { TreeMember, TreeRelationship } from "@/types";
 
@@ -411,13 +412,13 @@ export default function TreeMemberModal({
             {member.dob && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-text-faint w-20 shrink-0">Born</span>
-                <span className="text-sm text-text">{member.dob}</span>
+                <span className="text-sm text-text">{formatDOB(member.dob)}</span>
               </div>
             )}
             {member.dod && (
               <div className="flex items-center gap-2">
                 <span className="text-xs text-text-faint w-20 shrink-0">Died</span>
-                <span className="text-sm text-text">{member.dod}</span>
+                <span className="text-sm text-text">{formatDOB(member.dod)}</span>
               </div>
             )}
             {member.status && (

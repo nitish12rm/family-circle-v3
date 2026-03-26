@@ -11,6 +11,7 @@ import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
 import DocPreviewModal from "@/components/documents/DocPreviewModal";
 import { downloadFile } from "@/lib/downloadFile";
+import { formatDOB } from "@/lib/formatDate";
 
 interface PublicProfile {
   id: string;
@@ -183,7 +184,7 @@ export default function UserProfileView({ userId }: { userId: string }) {
             )}
             {profile.dob && (
               <p className="text-xs text-text-muted flex items-center gap-1.5">
-                <Calendar size={12} className="text-text-faint shrink-0" /> Born {profile.dob}
+                <Calendar size={12} className="text-text-faint shrink-0" /> Born {formatDOB(profile.dob)}
               </p>
             )}
             {profile.goals && (
