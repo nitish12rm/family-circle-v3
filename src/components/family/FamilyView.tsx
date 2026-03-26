@@ -128,10 +128,36 @@ export default function FamilyView() {
 
   const copyInviteLink = (invite: FamilyInvite) => {
     const link = `${appUrl}/join/${invite.code}`;
-    navigator.clipboard.writeText(link);
-    setCopiedId(invite.id);
-    setTimeout(() => setCopiedId(null), 2000);
-    showToast("Link copied!", "success");
+
+    const fallbackCopy = () => {
+      const ta = document.createElement("textarea");
+      ta.value = link;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand("copy");
+        setCopiedId(invite.id);
+        setTimeout(() => setCopiedId(null), 2000);
+        showToast("Link copied!", "success");
+      } catch {
+        showToast("Copy failed — please copy manually", "error");
+      } finally {
+        document.body.removeChild(ta);
+      }
+    };
+
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(link).then(() => {
+        setCopiedId(invite.id);
+        setTimeout(() => setCopiedId(null), 2000);
+        showToast("Link copied!", "success");
+      }).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
   };
 
   const handleLeaveFamily = async () => {
