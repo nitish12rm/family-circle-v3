@@ -359,6 +359,7 @@ export default function TreeView() {
   const [addOpen, setAddOpen] = useState(false);
   const [addRelOpen, setAddRelOpen] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", gender: "", dob: "", notes: "" });
+  const [addFromProfileId, setAddFromProfileId] = useState("");
   const [relForm, setRelForm] = useState({ member_id: "", related_member_id: "", type: "parent" });
   const [saving, setSaving] = useState(false);
 
@@ -476,6 +477,35 @@ export default function TreeView() {
       setAddOpen(false);
       setAddForm({ name: "", gender: "", dob: "", notes: "" });
       showToast("Member added!", "success");
+    } catch {
+      showToast("Failed to add member", "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleAddFromProfile = async () => {
+    if (!addFromProfileId || !activeFamilyId) return;
+    const fm = familyMembers.find((m) => m.user_id === addFromProfileId);
+    if (!fm?.profile) return;
+    setSaving(true);
+    try {
+      // Create node linked to the profile, then sync full data (name/gender/photo/dob)
+      const created = await api.post<TreeMember>(`/api/families/${activeFamilyId}/tree`, {
+        name: fm.profile.name,
+        photo: fm.profile.avatar ?? "",
+        profile_id: fm.user_id,
+      });
+      const synced = await api.patch<TreeMember>(
+        `/api/families/${activeFamilyId}/tree?memberId=${created.id}`,
+        { sync_profile: true }
+      );
+      const newData = { ...treeData, members: [...treeData.members, synced] };
+      setTreeData(newData);
+      setPositions(buildLayout(newData.members, newData.relationships));
+      setAddOpen(false);
+      setAddFromProfileId("");
+      showToast("Member added and synced!", "success");
     } catch {
       showToast("Failed to add member", "error");
     } finally {
@@ -951,8 +981,42 @@ export default function TreeView() {
       )}
 
       {/* Add member modal */}
-      <Modal open={addOpen} onClose={() => setAddOpen(false)} title="Add Person">
+      <Modal open={addOpen} onClose={() => { setAddOpen(false); setAddFromProfileId(""); }} title="Add Person">
         <div className="flex flex-col gap-4">
+          {/* Admin: add an existing family member who hasn't placed themselves */}
+          {isAdmin && (() => {
+            const linkedIds = new Set(treeData.members.map((m) => m.profile_id).filter(Boolean));
+            const unlinked = familyMembers.filter((fm) => fm.profile && !linkedIds.has(fm.user_id));
+            if (unlinked.length === 0) return null;
+            return (
+              <div className="flex flex-col gap-2 pb-4 border-b border-border">
+                <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
+                  Add from group members
+                </span>
+                <select
+                  value={addFromProfileId}
+                  onChange={(e) => setAddFromProfileId(e.target.value)}
+                  className="w-full bg-bg-2 border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
+                >
+                  <option value="">Select member…</option>
+                  {unlinked.map((fm) => (
+                    <option key={fm.user_id} value={fm.user_id}>{fm.profile!.name}</option>
+                  ))}
+                </select>
+                <Button
+                  onClick={handleAddFromProfile}
+                  loading={saving}
+                  disabled={!addFromProfileId}
+                  className="w-full"
+                >
+                  <Save size={14} /> Add &amp; Sync Profile
+                </Button>
+                <p className="text-[11px] text-text-faint text-center">
+                  Creates a tree node linked to their account — name, photo, gender &amp; dob synced automatically
+                </p>
+              </div>
+            );
+          })()}
           <Input
             label="Full Name *"
             placeholder="Jane Smith"
