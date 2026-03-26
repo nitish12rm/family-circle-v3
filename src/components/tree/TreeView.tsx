@@ -787,6 +787,51 @@ export default function TreeView() {
             setPositions(buildLayout(newData.members, newData.relationships));
             setSelectedMember((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
           }}
+          onRelDeleted={(relId) => {
+            const newData = {
+              ...treeData,
+              relationships: treeData.relationships.filter((r) => r.id !== relId),
+            };
+            // Also remove the inverse rel (same pair, opposite direction, inverse type)
+            const deleted = treeData.relationships.find((r) => r.id === relId);
+            const INV: Record<string, string> = {
+              parent: "child", child: "parent", spouse: "spouse", sibling: "sibling",
+              step_parent: "step_child", step_child: "step_parent",
+            };
+            const filteredRels = deleted
+              ? newData.relationships.filter(
+                  (r) =>
+                    !(
+                      r.member_id === deleted.related_member_id &&
+                      r.related_member_id === deleted.member_id &&
+                      r.type === INV[deleted.type]
+                    )
+                )
+              : newData.relationships;
+            const finalData = { ...treeData, relationships: filteredRels };
+            setTreeData(finalData);
+            setPositions(buildLayout(finalData.members, finalData.relationships));
+          }}
+          onRelTypeChanged={(relId, newType) => {
+            const INVERSE: Record<string, string> = {
+              parent: "child", child: "parent", spouse: "spouse", sibling: "sibling",
+              step_parent: "step_child", step_child: "step_parent",
+            };
+            const changed = treeData.relationships.find((r) => r.id === relId);
+            const newRels = treeData.relationships.map((r) => {
+              if (r.id === relId) return { ...r, type: newType as typeof r.type };
+              if (
+                changed &&
+                r.member_id === changed.related_member_id &&
+                r.related_member_id === changed.member_id
+              )
+                return { ...r, type: INVERSE[newType] as typeof r.type };
+              return r;
+            });
+            const newData = { ...treeData, relationships: newRels };
+            setTreeData(newData);
+            setPositions(buildLayout(newData.members, newData.relationships));
+          }}
         />
       )}
 

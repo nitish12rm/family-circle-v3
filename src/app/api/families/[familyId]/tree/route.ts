@@ -102,12 +102,22 @@ export async function PATCH(
   { params }: { params: Promise<{ familyId: string }> }
 ) {
   try {
+    const { userId } = requireAuth(req);
+    await connectDB();
     const { familyId } = await params;
-    await requireAdmin(req, familyId);
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get("memberId");
     if (!memberId)
       return NextResponse.json({ error: "Missing memberId" }, { status: 400 });
+
+    // Allow self-edit or admin
+    const target = await TreeMember.findOne({ _id: memberId, family_id: familyId }).lean();
+    if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const isSelf = (target as { profile_id?: string }).profile_id === userId;
+    if (!isSelf) {
+      const adminMembership = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+      if (!adminMembership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const body = await req.json();
     const allowed = ["name", "dob", "dod", "gender", "photo", "status", "notes", "is_deceased"];
@@ -120,10 +130,9 @@ export async function PATCH(
       { _id: memberId, family_id: familyId },
       { $set: updates },
       { new: true, lean: true }
-    );
-
+    ) as Record<string, unknown> | null;
     if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const m = member as Record<string, unknown>;
+    const m = member;
     return NextResponse.json({
       id: m._id, family_id: m.family_id, profile_id: m.profile_id,
       name: m.name, dob: m.dob, dod: m.dod, gender: m.gender,

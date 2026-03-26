@@ -20,6 +20,8 @@ interface Props {
   onClose: () => void;
   onDelete: (id: string) => void;
   onUpdated: (member: TreeMember) => void;
+  onRelDeleted: (relId: string) => void;
+  onRelTypeChanged: (relId: string, newType: string) => void;
 }
 
 const GENDER_COLOR: Record<string, string> = {
@@ -28,20 +30,92 @@ const GENDER_COLOR: Record<string, string> = {
   other: "bg-accent/20 text-accent border-accent/30",
 };
 
-function relLabel(type: "parent" | "child" | "spouse" | "sibling", gender?: string) {
+// Human-readable label for a relationship from member → related
+function chipLabel(type: string, gender?: string) {
   const m = gender === "male", f = gender === "female";
-  if (type === "parent")  return m ? "Father" : f ? "Mother" : "Parent";
-  if (type === "child")   return m ? "Son"    : f ? "Daughter" : "Child";
-  if (type === "sibling") return m ? "Brother": f ? "Sister" : "Sibling";
-  if (type === "spouse")  return m ? "Husband": f ? "Wife" : "Partner";
+  if (type === "child")       return m ? "Father"      : f ? "Mother"      : "Parent";
+  if (type === "step_child")  return m ? "Step-father" : f ? "Step-mother" : "Step-parent";
+  if (type === "parent")      return m ? "Son"         : f ? "Daughter"    : "Child";
+  if (type === "step_parent") return m ? "Step-son"    : f ? "Step-daughter" : "Step-child";
+  if (type === "sibling")     return m ? "Brother"     : f ? "Sister"      : "Sibling";
+  if (type === "spouse")      return m ? "Husband"     : f ? "Wife"        : "Partner";
   return type;
 }
 
-function RelChip({ name, photo, label }: { name: string; photo?: string; label?: string }) {
+// Which type can a given rel be toggled to?
+const TYPE_TOGGLE: Record<string, string> = {
+  child: "step_child",
+  step_child: "child",
+  parent: "step_parent",
+  step_parent: "parent",
+};
+
+// Section heading based on rel type from member's perspective
+function sectionLabel(type: string) {
+  if (type === "child" || type === "step_child") return "Parents";
+  if (type === "parent" || type === "step_parent") return "Children";
+  if (type === "sibling") return "Siblings";
+  if (type === "spouse") return "Partner";
+  return type;
+}
+
+interface RelEntry {
+  relId: string;
+  relType: string;
+  member: TreeMember;
+}
+
+function RelChip({
+  entry,
+  canEdit,
+  onRemove,
+  onToggleType,
+  removing,
+  toggling,
+}: {
+  entry: RelEntry;
+  canEdit: boolean;
+  onRemove: () => void;
+  onToggleType: () => void;
+  removing: boolean;
+  toggling: boolean;
+}) {
+  const label = chipLabel(entry.relType, entry.member.gender);
+  const toggleTarget = TYPE_TOGGLE[entry.relType];
+  const isStep = entry.relType.startsWith("step_");
+
   return (
-    <div className="flex items-center gap-1.5 bg-bg-3 border border-border rounded-full px-2.5 py-1">
-      <Avatar name={name} src={photo} size={18} />
-      <span className="text-xs text-text-muted">{label ? `${label} · ` : ""}{name}</span>
+    <div
+      className={`flex items-center gap-1.5 border rounded-full px-2.5 py-1 ${
+        isStep
+          ? "bg-amber-500/10 border-amber-500/30"
+          : "bg-bg-3 border-border"
+      }`}
+    >
+      <Avatar name={entry.member.name} src={entry.member.photo} size={18} />
+      <span className="text-xs text-text-muted">
+        {label} · {entry.member.name}
+      </span>
+      {canEdit && toggleTarget && (
+        <button
+          onClick={onToggleType}
+          disabled={toggling}
+          title={`Change to ${TYPE_TOGGLE[entry.relType]?.replace("_", "-")}`}
+          className="ml-0.5 text-text-faint hover:text-accent transition-colors disabled:opacity-40"
+        >
+          <Pencil size={10} />
+        </button>
+      )}
+      {canEdit && (
+        <button
+          onClick={onRemove}
+          disabled={removing}
+          title="Remove this link"
+          className="text-text-faint hover:text-error transition-colors disabled:opacity-40"
+        >
+          <X size={10} />
+        </button>
+      )}
     </div>
   );
 }
@@ -56,11 +130,15 @@ export default function TreeMemberModal({
   onClose,
   onDelete,
   onUpdated,
+  onRelDeleted,
+  onRelTypeChanged,
 }: Props) {
   const router = useRouter();
   const { showToast } = useUIStore();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [removingRelId, setRemovingRelId] = useState<string | null>(null);
+  const [togglingRelId, setTogglingRelId] = useState<string | null>(null);
   const [form, setForm] = useState({
     name: "",
     dob: "",
@@ -101,30 +179,64 @@ export default function TreeMemberModal({
     }
   };
 
+  const handleRemoveRel = async (relId: string) => {
+    setRemovingRelId(relId);
+    try {
+      await api.delete(`/api/families/${familyId}/tree/relationships?relId=${relId}`);
+      onRelDeleted(relId);
+      showToast("Link removed", "success");
+    } catch {
+      showToast("Failed to remove link", "error");
+    } finally {
+      setRemovingRelId(null);
+    }
+  };
+
+  const handleToggleType = async (relId: string, newType: string) => {
+    setTogglingRelId(relId);
+    try {
+      await api.patch(`/api/families/${familyId}/tree/relationships`, { relId, new_type: newType });
+      onRelTypeChanged(relId, newType);
+      showToast("Link updated", "success");
+    } catch {
+      showToast("Failed to update link", "error");
+    } finally {
+      setTogglingRelId(null);
+    }
+  };
+
   if (!member) return null;
 
   const { members, relationships } = treeData;
   const find = (id: string) => members.find((m) => m.id === id);
 
-  const parents = relationships
-    .filter((r) => r.member_id === member.id && r.type === "child")
-    .map((r) => find(r.related_member_id))
-    .filter(Boolean) as TreeMember[];
+  // My own tree member node (for permission check)
+  const myMemberId = members.find((m) => m.profile_id === currentUserId)?.id;
+  const canEditLinks = isAdmin || member.id === myMemberId;
+  const canEditData = isAdmin || member.profile_id === currentUserId;
 
-  const spouses = relationships
+  // Build typed rel entries (include step types)
+  const parentEntries: RelEntry[] = relationships
+    .filter((r) => r.member_id === member.id && (r.type === "child" || r.type === "step_child"))
+    .map((r) => ({ relId: r.id, relType: r.type, member: find(r.related_member_id)! }))
+    .filter((e) => e.member);
+
+  const spouseEntries: RelEntry[] = relationships
     .filter((r) => r.member_id === member.id && r.type === "spouse")
-    .map((r) => find(r.related_member_id))
-    .filter(Boolean) as TreeMember[];
+    .map((r) => ({ relId: r.id, relType: r.type, member: find(r.related_member_id)! }))
+    .filter((e) => e.member);
 
-  const children = relationships
-    .filter((r) => r.member_id === member.id && r.type === "parent")
-    .map((r) => find(r.related_member_id))
-    .filter(Boolean) as TreeMember[];
+  const childEntries: RelEntry[] = relationships
+    .filter((r) => r.member_id === member.id && (r.type === "parent" || r.type === "step_parent"))
+    .map((r) => ({ relId: r.id, relType: r.type, member: find(r.related_member_id)! }))
+    .filter((e) => e.member);
 
-  const siblings = relationships
+  const siblingEntries: RelEntry[] = relationships
     .filter((r) => r.member_id === member.id && r.type === "sibling")
-    .map((r) => find(r.related_member_id))
-    .filter(Boolean) as TreeMember[];
+    .map((r) => ({ relId: r.id, relType: r.type, member: find(r.related_member_id)! }))
+    .filter((e) => e.member);
+
+  const hasRels = parentEntries.length > 0 || spouseEntries.length > 0 || childEntries.length > 0 || siblingEntries.length > 0;
 
   return (
     <Modal open={!!member} onClose={onClose} title="Family Member">
@@ -221,24 +333,24 @@ export default function TreeMemberModal({
               </div>
             </div>
             {/* Action buttons */}
-            {(isAdmin || member.profile_id === currentUserId) && (
+            {canEditData && (
               <div className="flex gap-1 shrink-0">
-                {isAdmin && (
+                <button
+                  onClick={openEdit}
+                  className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
+                  title="Edit details"
+                >
+                  <Pencil size={15} />
+                </button>
+                {(isAdmin || member.profile_id === currentUserId) && (
                   <button
-                    onClick={openEdit}
-                    className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
-                    title="Edit"
+                    onClick={() => { onDelete(member.id); onClose(); }}
+                    className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
+                    title={member.profile_id === currentUserId ? "Remove yourself from tree" : "Delete"}
                   >
-                    <Pencil size={15} />
+                    <Trash2 size={15} />
                   </button>
                 )}
-                <button
-                  onClick={() => { onDelete(member.id); onClose(); }}
-                  className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
-                  title={member.profile_id === currentUserId ? "Remove yourself from tree" : "Delete"}
-                >
-                  <Trash2 size={15} />
-                </button>
               </div>
             )}
           </div>
@@ -272,51 +384,42 @@ export default function TreeMemberModal({
           </div>
 
           {/* Relationships */}
-          {(parents.length > 0 || spouses.length > 0 || children.length > 0 || siblings.length > 0) && (
+          {hasRels && (
             <div className="flex flex-col gap-3 border-t border-border pt-4">
-              {parents.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
-                    {parents.length === 1 ? relLabel("parent", parents[0].gender) : "Parents"}
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {parents.map((p) => (
-                      <RelChip key={p.id} name={p.name} photo={p.photo} label={relLabel("parent", p.gender)} />
-                    ))}
+              {[
+                { label: sectionLabel("child"), entries: parentEntries },
+                { label: sectionLabel("spouse"), entries: spouseEntries },
+                { label: sectionLabel("parent"), entries: childEntries },
+                { label: sectionLabel("sibling"), entries: siblingEntries },
+              ].map(({ label, entries }) =>
+                entries.length === 0 ? null : (
+                  <div key={label} className="flex flex-col gap-1.5">
+                    <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
+                      {label}
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {entries.map((entry) => (
+                        <RelChip
+                          key={entry.relId}
+                          entry={entry}
+                          canEdit={canEditLinks}
+                          onRemove={() => handleRemoveRel(entry.relId)}
+                          onToggleType={() =>
+                            handleToggleType(entry.relId, TYPE_TOGGLE[entry.relType])
+                          }
+                          removing={removingRelId === entry.relId}
+                          toggling={togglingRelId === entry.relId}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )
               )}
-              {spouses.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
-                    {relLabel("spouse", spouses[0].gender)}
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {spouses.map((s) => (
-                      <RelChip key={s.id} name={s.name} photo={s.photo} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {children.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">Children</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {children.map((c) => (
-                      <RelChip key={c.id} name={c.name} photo={c.photo} label={relLabel("child", c.gender)} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {siblings.length > 0 && (
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">Siblings</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {siblings.map((s) => (
-                      <RelChip key={s.id} name={s.name} photo={s.photo} label={relLabel("sibling", s.gender)} />
-                    ))}
-                  </div>
-                </div>
+
+              {canEditLinks && (
+                <p className="text-[10px] text-text-faint mt-1">
+                  Pencil icon changes parent ↔ step-parent · × removes the link
+                </p>
               )}
             </div>
           )}
