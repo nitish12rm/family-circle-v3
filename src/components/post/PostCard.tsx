@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
-import { Heart, MessageCircle, X, Send, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, X, Send, Trash2, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/lib/api";
@@ -46,6 +46,9 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
   const [commentCount, setCommentCount] = useState(post.comment_count ?? 0);
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
+
+  // Lightbox
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const isLong = post.content.length > CONTENT_LIMIT;
   const displayContent = isLong && !expanded
@@ -177,16 +180,28 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
           )}
         </div>
 
-        {/* Media — consistent 4:3 ratio */}
+        {/* Media — object-contain so full image is visible */}
         {media.length > 0 && (
           <div className={`grid gap-0.5 ${media.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
             {media.slice(0, 4).map((url, i) => (
-              <div key={i} className={`relative overflow-hidden ${media.length === 1 ? "aspect-[4/3]" : "aspect-square"}`}>
+              <div
+                key={i}
+                className={`relative overflow-hidden bg-black ${media.length === 1 ? "aspect-[4/3]" : "aspect-square"} cursor-pointer`}
+                onClick={(e) => { e.stopPropagation(); setLightboxIndex(i); }}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="w-full h-full object-cover" />
+                <img src={url} alt="" className="w-full h-full object-contain" />
                 {i === 3 && media.length > 4 && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
                     <span className="text-white font-bold text-xl">+{media.length - 4}</span>
+                  </div>
+                )}
+                {navigable && i !== 3 && (
+                  <div className="absolute bottom-2 right-2 pointer-events-none">
+                    <span className="flex items-center gap-1 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm">
+                      <ExternalLink size={9} />
+                      View post
+                    </span>
                   </div>
                 )}
               </div>
@@ -396,6 +411,63 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {lightboxIndex !== null && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center"
+          onClick={() => setLightboxIndex(null)}
+        >
+          {/* Close */}
+          <button
+            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white z-10"
+            onClick={() => setLightboxIndex(null)}
+          >
+            <X size={22} />
+          </button>
+
+          {/* Prev */}
+          {media.length > 1 && lightboxIndex > 0 && (
+            <button
+              className="absolute left-3 p-2 text-white/70 hover:text-white z-10"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i ?? 1) - 1); }}
+            >
+              <ChevronLeft size={28} />
+            </button>
+          )}
+
+          {/* Image */}
+          <div className="w-full h-full flex items-center justify-center px-12 py-16" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={media[lightboxIndex]}
+              alt=""
+              className="max-w-full max-h-full object-contain"
+            />
+          </div>
+
+          {/* Next */}
+          {media.length > 1 && lightboxIndex < media.length - 1 && (
+            <button
+              className="absolute right-3 p-2 text-white/70 hover:text-white z-10"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i ?? 0) + 1); }}
+            >
+              <ChevronRight size={28} />
+            </button>
+          )}
+
+          {/* View post button — only in feed (navigable) */}
+          {navigable && (
+            <button
+              className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white text-xs font-medium px-4 py-2 rounded-full transition-colors z-10"
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); router.push(`/post/${post.id}`); }}
+            >
+              <ExternalLink size={12} />
+              View post
+            </button>
+          )}
         </div>
       )}
 
