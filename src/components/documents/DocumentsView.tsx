@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { Upload, FileText, Trash2, Download, X, Eye, Lock, Globe, ChevronDown } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Upload, FileText, Trash2, Download, X, Eye, Lock, Globe, ChevronDown, Search } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -36,6 +36,10 @@ export default function DocumentsView() {
   const [docs, setDocs] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
+
+  // Upload form state
   const [file, setFile] = useState<File | null>(null);
   const [docName, setDocName] = useState("");
   const [description, setDescription] = useState("");
@@ -56,9 +60,7 @@ export default function DocumentsView() {
   const loadDocs = useCallback(async () => {
     if (!activeFamilyId) return;
     try {
-      const data = await api.get<Document[]>(
-        `/api/families/${activeFamilyId}/documents`
-      );
+      const data = await api.get<Document[]>(`/api/families/${activeFamilyId}/documents`);
       setDocs(data);
     } catch {
       showToast("Failed to load documents", "error");
@@ -71,6 +73,36 @@ export default function DocumentsView() {
     setLoading(true);
     loadDocs();
   }, [loadDocs]);
+
+  // My docs only
+  const myDocs = useMemo(() => docs.filter((d) => d.uploaded_by === user?.id), [docs, user]);
+
+  // Categories present in my docs
+  const presentCategories = useMemo(() => {
+    const cats = Array.from(new Set(myDocs.map((d) => d.category || "Other")));
+    return ["All", ...cats];
+  }, [myDocs]);
+
+  // Filtered
+  const filteredDocs = useMemo(() => {
+    return myDocs.filter((d) => {
+      const q = search.toLowerCase();
+      const matchSearch = !q || d.name.toLowerCase().includes(q) || (d.description ?? "").toLowerCase().includes(q);
+      const matchCat = activeCategory === "All" || (d.category || "Other") === activeCategory;
+      return matchSearch && matchCat;
+    });
+  }, [myDocs, search, activeCategory]);
+
+  // Grouped by category
+  const grouped = useMemo(() => {
+    const map: Record<string, Document[]> = {};
+    for (const doc of filteredDocs) {
+      const key = doc.category || "Other";
+      if (!map[key]) map[key] = [];
+      map[key].push(doc);
+    }
+    return Object.entries(map);
+  }, [filteredDocs]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -95,19 +127,15 @@ export default function DocumentsView() {
       formData.append("file", file);
       formData.append("folder", "family-circle-v3/documents");
       const { url } = await api.upload<{ url: string }>("/api/upload", formData);
-
-      const doc = await api.post<Document>(
-        `/api/families/${activeFamilyId}/documents`,
-        {
-          name: docName || file.name,
-          file_path: url,
-          file_size: file.size,
-          mime_type: file.type,
-          description,
-          category,
-          visibility,
-        }
-      );
+      const doc = await api.post<Document>(`/api/families/${activeFamilyId}/documents`, {
+        name: docName || file.name,
+        file_path: url,
+        file_size: file.size,
+        mime_type: file.type,
+        description,
+        category,
+        visibility,
+      });
       setDocs((prev) => [doc, ...prev]);
       setUploadOpen(false);
       resetForm();
@@ -140,84 +168,142 @@ export default function DocumentsView() {
 
   return (
     <div className="max-w-xl mx-auto px-4 py-4">
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-lg font-semibold text-text">Documents</h1>
+        <div>
+          <h1 className="text-lg font-semibold text-text">My Documents</h1>
+          {!loading && (
+            <p className="text-xs text-text-faint mt-0.5">{myDocs.length} document{myDocs.length !== 1 ? "s" : ""}</p>
+          )}
+        </div>
         <Button size="sm" onClick={() => setUploadOpen(true)}>
           <Upload size={14} /> Upload
         </Button>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <Spinner />
-        </div>
-      ) : docs.length === 0 ? (
+        <div className="flex justify-center py-20"><Spinner /></div>
+      ) : myDocs.length === 0 ? (
         <div className="text-center py-20">
           <FileText size={40} className="mx-auto text-text-faint mb-3" />
           <p className="text-text-muted text-sm">No documents yet.</p>
+          <p className="text-text-faint text-xs mt-1">Upload your first document to get started.</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {docs.map((doc) => (
-            <div
-              key={doc.id}
-              className="bg-bg-2 border border-border rounded-2xl p-4 flex items-center gap-3"
-            >
-              <div className="w-10 h-10 bg-bg-3 rounded-xl flex items-center justify-center shrink-0 text-lg">
-                {fileIcon(doc.mime_type)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-text truncate">{doc.name}</p>
-                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                  <span className="text-xs bg-bg-3 text-text-muted px-1.5 py-0.5 rounded-md">
-                    {doc.category}
+        <div className="flex flex-col gap-4">
+          {/* Search */}
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+            <input
+              type="text"
+              placeholder="Search by name or description…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-bg-2 border border-border rounded-xl pl-8 pr-4 py-2 text-sm text-text placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-accent/40"
+            />
+          </div>
+
+          {/* Category filter chips */}
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {presentCategories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(cat)}
+                className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                  activeCategory === cat
+                    ? "bg-accent text-white"
+                    : "bg-bg-2 border border-border text-text-muted hover:text-text"
+                }`}
+              >
+                {cat}
+                {cat !== "All" && (
+                  <span className="ml-1 opacity-60">
+                    {myDocs.filter((d) => (d.category || "Other") === cat).length}
                   </span>
-                  <span className={`text-xs px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
-                    doc.visibility === "public"
-                      ? "bg-green-500/10 text-green-400"
-                      : "bg-bg-3 text-text-faint"
-                  }`}>
-                    {doc.visibility === "public" ? <Globe size={10} /> : <Lock size={10} />}
-                    {doc.visibility}
-                  </span>
-                </div>
-                <p className="text-xs text-text-muted mt-0.5">
-                  {formatBytes(doc.file_size)} ·{" "}
-                  {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
-                </p>
-                {doc.description && (
-                  <p className="text-xs text-text-faint mt-1 truncate">{doc.description}</p>
                 )}
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <button
-                  onClick={() => setPreviewDoc(doc)}
-                  className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
-                  title="Preview"
-                >
-                  <Eye size={14} />
-                </button>
-                <a
-                  href={doc.file_path}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
-                  title="Download"
-                >
-                  <Download size={14} />
-                </a>
-                {doc.uploaded_by === user?.id && (
-                  <button
-                    onClick={() => handleDelete(doc.id)}
-                    className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
-                    title="Delete"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Results */}
+          {filteredDocs.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-text-muted text-sm">No documents match your search.</p>
             </div>
-          ))}
+          ) : (
+            <div className="flex flex-col gap-5">
+              {grouped.map(([cat, catDocs]) => (
+                <div key={cat} className="flex flex-col gap-2">
+                  {/* Category tag header */}
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-accent/10 text-accent border border-accent/20">
+                      {cat}
+                    </span>
+                    <span className="text-xs text-text-faint">{catDocs.length} doc{catDocs.length !== 1 ? "s" : ""}</span>
+                    <div className="flex-1 h-px bg-border" />
+                  </div>
+
+                  {/* Cards */}
+                  <div className="flex flex-col gap-2">
+                    {catDocs.map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="bg-bg-2 border border-border rounded-2xl p-4 flex items-center gap-3"
+                      >
+                        <div className="w-10 h-10 bg-bg-3 rounded-xl flex items-center justify-center shrink-0 text-lg">
+                          {fileIcon(doc.mime_type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-text truncate">{doc.name}</p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={`text-xs px-1.5 py-0.5 rounded-md flex items-center gap-0.5 ${
+                              doc.visibility === "public"
+                                ? "bg-green-500/10 text-green-400"
+                                : "bg-bg-3 text-text-faint"
+                            }`}>
+                              {doc.visibility === "public" ? <Globe size={10} /> : <Lock size={10} />}
+                              {doc.visibility === "public" ? "Public" : "Private"}
+                            </span>
+                            <span className="text-xs text-text-faint">
+                              {formatBytes(doc.file_size)} · {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
+                            </span>
+                          </div>
+                          {doc.description && (
+                            <p className="text-xs text-text-faint mt-1 truncate">{doc.description}</p>
+                          )}
+                        </div>
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            onClick={() => setPreviewDoc(doc)}
+                            className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
+                            title="Preview"
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <a
+                            href={doc.file_path}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
+                            title="Download"
+                          >
+                            <Download size={14} />
+                          </a>
+                          <button
+                            onClick={() => handleDelete(doc.id)}
+                            className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -228,7 +314,6 @@ export default function DocumentsView() {
         title="Upload Document"
       >
         <div className="flex flex-col gap-4">
-          {/* File drop zone */}
           <div
             className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-accent transition-colors"
             onClick={() => document.getElementById("doc-file-input")?.click()}
@@ -258,12 +343,7 @@ export default function DocumentsView() {
               </>
             )}
           </div>
-          <input
-            id="doc-file-input"
-            type="file"
-            className="hidden"
-            onChange={handleFileSelect}
-          />
+          <input id="doc-file-input" type="file" className="hidden" onChange={handleFileSelect} />
 
           <Input
             label="Document Name"
@@ -272,7 +352,7 @@ export default function DocumentsView() {
             onChange={(e) => setDocName(e.target.value)}
           />
 
-          {/* Category selector */}
+          {/* Category */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-text-muted">Category</label>
             <div className="relative">
@@ -289,7 +369,7 @@ export default function DocumentsView() {
             </div>
           </div>
 
-          {/* Visibility toggle */}
+          {/* Visibility */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-text-muted">Visibility</label>
             <div className="flex rounded-xl border border-border overflow-hidden">
@@ -297,9 +377,7 @@ export default function DocumentsView() {
                 type="button"
                 onClick={() => setVisibility("private")}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${
-                  visibility === "private"
-                    ? "bg-bg-3 text-text"
-                    : "bg-bg-2 text-text-muted hover:bg-bg-3"
+                  visibility === "private" ? "bg-bg-3 text-text" : "bg-bg-2 text-text-muted hover:bg-bg-3"
                 }`}
               >
                 <Lock size={13} /> Private
@@ -308,18 +386,14 @@ export default function DocumentsView() {
                 type="button"
                 onClick={() => setVisibility("public")}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-medium transition-colors ${
-                  visibility === "public"
-                    ? "bg-green-500/15 text-green-400"
-                    : "bg-bg-2 text-text-muted hover:bg-bg-3"
+                  visibility === "public" ? "bg-green-500/15 text-green-400" : "bg-bg-2 text-text-muted hover:bg-bg-3"
                 }`}
               >
                 <Globe size={13} /> Public
               </button>
             </div>
             <p className="text-xs text-text-faint">
-              {visibility === "public"
-                ? "Visible to family members on your profile"
-                : "Only visible to you"}
+              {visibility === "public" ? "Visible to family members on your profile" : "Only visible to you"}
             </p>
           </div>
 
@@ -331,22 +405,13 @@ export default function DocumentsView() {
             rows={2}
           />
 
-          <Button
-            onClick={handleUpload}
-            loading={uploading}
-            disabled={!file || compressing}
-            className="w-full"
-          >
+          <Button onClick={handleUpload} loading={uploading} disabled={!file || compressing} className="w-full">
             Upload
           </Button>
         </div>
       </Modal>
 
-      {/* Preview modal */}
-      <DocPreviewModal
-        doc={previewDoc}
-        onClose={() => setPreviewDoc(null)}
-      />
+      <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </div>
   );
 }
