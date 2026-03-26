@@ -23,7 +23,7 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
 
   return (
     <header
-      className="fixed top-0 left-0 right-0 z-40 bg-bg-1/80 backdrop-blur-xl border-b border-border flex items-center px-4 gap-3"
+      className="fixed top-0 left-0 right-0 z-40 bg-bg-1 border-b border-border flex items-center px-4 gap-3"
       style={{ height: "var(--topbar-h)", paddingTop: "var(--sat)" }}
     >
       {/* Family selector — always a dropdown */}
