@@ -17,6 +17,7 @@ interface DMConversation {
   lastMessage: string;
   lastMessageAt: string;
   isMe: boolean;
+  unread: number;
 }
 
 export default function ChatInbox() {
@@ -25,6 +26,7 @@ export default function ChatInbox() {
   const router = useRouter();
   const [members, setMembers] = useState<FamilyMember[]>([]);
   const [conversations, setConversations] = useState<DMConversation[]>([]);
+  const [groupUnread, setGroupUnread] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -33,12 +35,14 @@ export default function ChatInbox() {
   const load = useCallback(async () => {
     if (!activeFamilyId) { setLoading(false); return; }
     try {
-      const [membersData, convsData] = await Promise.all([
+      const [membersData, convsData, unreadData] = await Promise.all([
         api.get<FamilyMember[]>(`/api/families/${activeFamilyId}/members`),
         api.get<DMConversation[]>("/api/dm"),
+        api.get<{ dms: number; group: number; total: number }>("/api/chat/unread"),
       ]);
       setMembers(membersData);
       setConversations(convsData);
+      setGroupUnread(unreadData.group);
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, [activeFamilyId]);
@@ -103,14 +107,22 @@ export default function ChatInbox() {
                   onClick={() => router.push(`/chat?family=${activeFamilyId}`)}
                   className="w-full flex items-center gap-3 px-4 py-3 hover:bg-bg-2 transition-colors"
                 >
-                  <div className="w-12 h-12 bg-accent-muted border border-accent/30 rounded-full flex items-center justify-center shrink-0">
-                    <Users size={20} className="text-accent" />
+                  <div className="relative shrink-0">
+                    <div className="w-12 h-12 bg-accent-muted border border-accent/30 rounded-full flex items-center justify-center">
+                      <Users size={20} className="text-accent" />
+                    </div>
+                    {groupUnread > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                        {groupUnread > 99 ? "99+" : groupUnread}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0 text-left">
-                    <p className="text-sm font-semibold text-text">{activeFamily?.name ?? "Family Chat"}</p>
+                    <p className={`text-sm truncate ${groupUnread > 0 ? "font-bold text-text" : "font-semibold text-text"}`}>
+                      {activeFamily?.name ?? "Family Chat"}
+                    </p>
                     <p className="text-xs text-text-muted mt-0.5">{members.length} members</p>
                   </div>
-                  <div className="w-2 h-2 bg-accent rounded-full shrink-0" />
                 </button>
                 <div className="mx-4 border-b border-border" />
               </>
@@ -131,6 +143,7 @@ export default function ChatInbox() {
             ) : (
               sorted.map((member) => {
                 const conv = convMap.get(member.user_id);
+                const hasUnread = (conv?.unread ?? 0) > 0;
                 return (
                   <button
                     key={member.id}
@@ -139,17 +152,24 @@ export default function ChatInbox() {
                   >
                     <div className="relative shrink-0">
                       <Avatar src={member.profile?.avatar} name={member.profile?.name} size={48} />
+                      {hasUnread && (
+                        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
+                          {(conv!.unread) > 99 ? "99+" : conv!.unread}
+                        </span>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-baseline justify-between gap-2">
-                        <p className="text-sm font-semibold text-text truncate">{member.profile?.name ?? "Unknown"}</p>
+                        <p className={`text-sm truncate ${hasUnread ? "font-bold text-text" : "font-semibold text-text"}`}>
+                          {member.profile?.name ?? "Unknown"}
+                        </p>
                         {conv && (
-                          <span className="text-[10px] text-text-faint shrink-0">
+                          <span className={`text-[10px] shrink-0 ${hasUnread ? "text-accent font-semibold" : "text-text-faint"}`}>
                             {formatDistanceToNow(new Date(conv.lastMessageAt), { addSuffix: false })}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-text-muted mt-0.5 truncate">
+                      <p className={`text-xs mt-0.5 truncate ${hasUnread ? "text-text font-medium" : "text-text-muted"}`}>
                         {conv
                           ? `${conv.isMe ? "You: " : ""}${conv.lastMessage}`
                           : <span className="text-text-faint italic">Tap to message</span>}

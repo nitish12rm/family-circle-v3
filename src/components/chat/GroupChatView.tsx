@@ -22,6 +22,10 @@ export default function GroupChatView({ familyId }: { familyId: string }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastTimestampRef = useRef<string | null>(null);
 
+  const markRead = useCallback(() => {
+    api.post(`/api/families/${familyId}/messages/read`, {}).catch(() => {});
+  }, [familyId]);
+
   const loadMessages = useCallback(async (initial = false) => {
     try {
       const url = initial
@@ -36,13 +40,17 @@ export default function GroupChatView({ familyId }: { familyId: string }) {
           setMessages((prev) => {
             const seen = new Set(prev.map((m) => m.id));
             const fresh = data.filter((m) => !seen.has(m.id));
-            return fresh.length ? [...prev, ...fresh] : prev;
+            // Update read_by on existing messages from polling data
+            const updatedById = Object.fromEntries(data.map((m) => [m.id, m]));
+            const merged = prev.map((m) => updatedById[m.id] ? { ...m, read_by: updatedById[m.id].read_by } : m);
+            return fresh.length ? [...merged, ...fresh] : merged;
           });
         }
+        markRead();
       }
     } catch { /* silent */ }
     finally { if (initial) setLoading(false); }
-  }, [familyId]);
+  }, [familyId, markRead]);
 
   useEffect(() => { setLoading(true); lastTimestampRef.current = null; loadMessages(true); }, [loadMessages]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
@@ -55,7 +63,7 @@ export default function GroupChatView({ familyId }: { familyId: string }) {
     setSending(true);
     try {
       const msg = await api.post<Message>(`/api/families/${familyId}/messages`, { content: text });
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) => [...prev, { ...msg, read_by: [] }]);
       lastTimestampRef.current = msg.created_at;
     } catch { setContent(text); }
     finally { setSending(false); }
@@ -76,32 +84,49 @@ export default function GroupChatView({ familyId }: { familyId: string }) {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 flex flex-col gap-1">
         {loading ? <div className="flex justify-center py-10"><Spinner /></div>
           : messages.length === 0 ? <div className="text-center py-20"><p className="text-text-muted text-sm">No messages yet. Say hello!</p></div>
           : messages.map((msg) => {
             const isMe = msg.sender_id === user?.id;
+            // Readers: exclude the sender themselves
+            const readers = (msg.read_by ?? []).filter((r) => r.id !== msg.sender_id);
             return (
-              <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
-                {!isMe && (
-                  <button onClick={() => router.push(`/profile/${msg.sender_id}`)} className="mt-1 shrink-0">
-                    <Avatar src={msg.sender?.avatar} name={msg.sender?.name} size={28} />
-                  </button>
-                )}
-                <div className={`max-w-[75%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+              <div key={msg.id} className={`flex flex-col ${isMe ? "items-end" : "items-start"} mb-1`}>
+                <div className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
                   {!isMe && (
-                    <button
-                      onClick={() => router.push(`/profile/${msg.sender_id}`)}
-                      className="text-xs text-text-muted mb-1 ml-1 hover:text-accent transition-colors"
-                    >
-                      {msg.sender?.name}
+                    <button onClick={() => router.push(`/profile/${msg.sender_id}`)} className="mt-1 shrink-0">
+                      <Avatar src={msg.sender?.avatar} name={msg.sender?.name} size={28} />
                     </button>
                   )}
-                  <div className={`px-3.5 py-2.5 rounded-2xl text-sm ${isMe ? "bg-accent text-white rounded-br-sm" : "bg-bg-3 text-text rounded-bl-sm"}`}>
-                    {msg.content}
+                  <div className={`max-w-[75%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                    {!isMe && (
+                      <button
+                        onClick={() => router.push(`/profile/${msg.sender_id}`)}
+                        className="text-xs text-text-muted mb-1 ml-1 hover:text-accent transition-colors"
+                      >
+                        {msg.sender?.name}
+                      </button>
+                    )}
+                    <div className={`px-3.5 py-2.5 rounded-2xl text-sm ${isMe ? "bg-accent text-white rounded-br-sm" : "bg-bg-3 text-text rounded-bl-sm"}`}>
+                      {msg.content}
+                    </div>
+                    <span className="text-[10px] text-text-faint mt-1 mx-1">{formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}</span>
                   </div>
-                  <span className="text-[10px] text-text-faint mt-1 mx-1">{formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}</span>
                 </div>
+                {/* Read receipts — avatar stack of who read this message */}
+                {readers.length > 0 && (
+                  <div className={`flex items-center gap-0.5 mt-0.5 ${isMe ? "mr-1" : "ml-9"}`}>
+                    <div className="flex -space-x-1">
+                      {readers.slice(0, 5).map((r) => (
+                        <Avatar key={r.id} src={r.avatar} name={r.name} size={14} className="ring-1 ring-bg-1" />
+                      ))}
+                    </div>
+                    {readers.length > 5 && (
+                      <span className="text-[9px] text-text-faint ml-1">+{readers.length - 5}</span>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

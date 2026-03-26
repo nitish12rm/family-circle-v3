@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { Message } from "@/models/Message";
+import { MessageRead } from "@/models/MessageRead";
 import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
 
@@ -31,6 +32,22 @@ export async function GET(
       .lean();
     const senderMap = Object.fromEntries(senders.map((s) => [s._id, s]));
 
+    // Read receipts
+    const msgIds = messages.map((m) => m._id as string);
+    const readEntries = await MessageRead.find({ message_id: { $in: msgIds } }).lean();
+    const readerIds = [...new Set(readEntries.map((r) => r.user_id))];
+    const readers = await Profile.find({ _id: { $in: readerIds } })
+      .select("_id name avatar")
+      .lean() as unknown as { _id: string; name: string; avatar?: string }[];
+    const readerMap = Object.fromEntries(readers.map((r) => [r._id, r]));
+    const readByMsg: Record<string, { id: string; name: string; avatar?: string }[]> = {};
+    for (const entry of readEntries) {
+      const r = readerMap[entry.user_id];
+      if (!r) continue;
+      if (!readByMsg[entry.message_id]) readByMsg[entry.message_id] = [];
+      readByMsg[entry.message_id].push({ id: r._id, name: r.name, avatar: r.avatar });
+    }
+
     return NextResponse.json(
       messages.map((m) => {
         const s = senderMap[m.sender_id] as Record<string, unknown> | undefined;
@@ -41,6 +58,7 @@ export async function GET(
           content: m.content,
           created_at: m.created_at,
           sender: s ? { id: s._id, name: s.name, avatar: s.avatar } : null,
+          read_by: readByMsg[m._id as string] ?? [],
         };
       })
     );
