@@ -71,6 +71,7 @@ export default function ProfileView() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [selectedPost, setSelectedPost] = useState<OwnPost | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -269,7 +270,7 @@ export default function ProfileView() {
         </button>
       </div>
 
-      {/* Posts grid */}
+      {/* Posts feed */}
       {tab === "posts" && (
         posts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-2">
@@ -277,58 +278,70 @@ export default function ProfileView() {
             <p className="text-text-muted text-sm">No posts yet.</p>
           </div>
         ) : (
-          <div className="px-4 py-4 grid grid-cols-2 gap-3">
+          <div className="px-4 py-4 flex flex-col gap-3">
             {posts.map((post) => {
               const media = post.media_urls ?? [];
               return (
-                <div
+                <button
                   key={post.id}
-                  className="rounded-2xl overflow-hidden border border-border bg-bg-2 flex flex-col"
+                  onClick={() => setSelectedPost(post)}
+                  className="bg-bg-2 border border-border rounded-2xl p-4 text-left w-full hover:border-accent/40 transition-colors"
                 >
-                  {media.length > 0 ? (
-                    <>
-                      {/* Image tile */}
-                      <div className="relative aspect-square">
-                        <img
-                          src={media[0]}
-                          alt=""
-                          className="w-full h-full object-cover"
-                        />
-                        {/* Gradient overlay with timestamp */}
-                        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
-                        <span className="absolute bottom-2 left-2.5 text-[10px] text-white/80 font-medium">
-                          {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-                        </span>
-                        {media.length > 1 && (
-                          <div className="absolute top-2 right-2 w-5 h-5 bg-black/55 backdrop-blur-sm rounded-md flex items-center justify-center">
-                            <Grid3X3 size={10} className="text-white" />
-                          </div>
-                        )}
-                      </div>
-                      {/* Caption below image */}
-                      {post.content ? (
-                        <p className="text-xs text-text-muted px-3 pt-2 pb-2.5 line-clamp-2 leading-relaxed">
-                          {post.content}
-                        </p>
-                      ) : null}
-                    </>
-                  ) : (
-                    /* Text-only post */
-                    <div className="flex flex-col justify-between p-4 min-h-[140px] bg-gradient-to-br from-accent/10 via-accent/5 to-transparent">
-                      <p className="text-sm text-text font-medium leading-relaxed line-clamp-5 flex-1">
-                        {post.content}
-                      </p>
-                      <span className="text-[10px] text-text-faint mt-3">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Avatar src={profile?.avatar} name={profile?.name ?? ""} size={36} />
+                    <div>
+                      <p className="text-sm font-medium text-text">{profile?.name}</p>
+                      <p className="text-xs text-text-faint">
                         {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
-                      </span>
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-sm text-text whitespace-pre-wrap line-clamp-3">{post.content}</p>
+                  {media.length > 0 && (
+                    <div className="mt-3 relative">
+                      <img
+                        src={media[0]}
+                        alt=""
+                        className="rounded-xl w-full h-48 object-cover"
+                      />
+                      {media.length > 1 && (
+                        <div className="absolute top-2 right-2 bg-black/60 rounded-full px-2 py-0.5 text-[10px] text-white font-medium">
+                          +{media.length - 1} more
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </button>
               );
             })}
           </div>
         )
       )}
+
+      {/* Full post modal */}
+      <Modal open={!!selectedPost} onClose={() => setSelectedPost(null)} title="">
+        {selectedPost && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <Avatar src={profile?.avatar} name={profile?.name ?? ""} size={36} />
+              <div>
+                <p className="text-sm font-semibold text-text">{profile?.name}</p>
+                <p className="text-xs text-text-faint">
+                  {formatDistanceToNow(new Date(selectedPost.created_at), { addSuffix: true })}
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-text whitespace-pre-wrap leading-relaxed">{selectedPost.content}</p>
+            {(selectedPost.media_urls ?? []).length > 0 && (
+              <div className={`grid gap-2 ${selectedPost.media_urls.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
+                {selectedPost.media_urls.map((url, i) => (
+                  <img key={i} src={url} alt="" className="rounded-xl w-full h-48 object-cover" />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Documents tab */}
       {tab === "documents" && (
