@@ -72,23 +72,23 @@ export default function OnboardingFlow() {
     setLoading(true);
     setError("");
     try {
-      const res = await api.post<{ family: Family }>(`/api/join/${inviteCode.trim()}`, {});
+      await api.post<{ family: Family }>(`/api/join/${inviteCode.trim()}`, {});
       const families = await api.get<Family[]>("/api/families");
       setFamilies(families);
-      void res;
-      await completeOnboarding();
+      // Go to tree so the placement modal fires automatically
+      await completeOnboarding("/tree");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error");
       setLoading(false);
     }
   };
 
-  const completeOnboarding = async () => {
+  const completeOnboarding = async (nextRoute = "/feed") => {
     const p = await api.patch<Profile>("/api/profile", {
       onboarding_complete: true,
     });
     setProfile(p);
-    router.replace("/feed");
+    router.replace(nextRoute);
   };
 
   return (
