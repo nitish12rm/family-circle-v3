@@ -29,6 +29,7 @@ interface Props {
   onUpdated: (member: TreeMember) => void;
   onRelDeleted: (relId: string) => void;
   onRelTypeChanged: (relId: string, newType: string) => void;
+  onRelAdded: () => void;
 }
 
 const GENDER_COLOR: Record<string, string> = {
@@ -140,6 +141,7 @@ export default function TreeMemberModal({
   onUpdated,
   onRelDeleted,
   onRelTypeChanged,
+  onRelAdded,
 }: Props) {
   const router = useRouter();
   const { showToast } = useUIStore();
@@ -150,6 +152,8 @@ export default function TreeMemberModal({
   const [linkProfileId, setLinkProfileId] = useState("");
   const [linking, setLinking] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [connectRel, setConnectRel] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const [form, setForm] = useState({
     name: "",
     dob: "",
@@ -251,6 +255,28 @@ export default function TreeMemberModal({
     }
   };
 
+  // Compute myMemberId before early return so handleConnect can close over it
+  const myMemberId = treeData.members.find((m) => m.profile_id === currentUserId)?.id;
+
+  const handleConnect = async () => {
+    if (!member || !myMemberId || !connectRel) return;
+    setConnecting(true);
+    try {
+      await api.post(`/api/families/${familyId}/tree/relationships`, {
+        member_id: myMemberId,
+        related_member_id: member.id,
+        type: connectRel,
+      });
+      onRelAdded();
+      setConnectRel(null);
+      showToast("Relationship added", "success");
+    } catch {
+      showToast("Failed to add relationship", "error");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
   if (!member) return null;
 
   const { members, relationships } = treeData;
@@ -263,9 +289,19 @@ export default function TreeMemberModal({
   const find = (id: string) => members.find((m) => m.id === id);
 
   // My own tree member node (for permission check)
-  const myMemberId = members.find((m) => m.profile_id === currentUserId)?.id;
   const canEditLinks = isAdmin || member.id === myMemberId;
   const canEditData = isAdmin || member.profile_id === currentUserId;
+
+  // Whether the current user has any direct relationship with this node
+  const hasDirectRel = myMemberId
+    ? relationships.some(
+        (r) =>
+          (r.member_id === myMemberId && r.related_member_id === member.id) ||
+          (r.member_id === member.id && r.related_member_id === myMemberId)
+      )
+    : false;
+  // Show "add connection" panel when: I'm on the tree, this isn't my own node, no direct rel yet
+  const showConnect = !!myMemberId && member.id !== myMemberId && !hasDirectRel && !member.is_placeholder;
 
   // Build typed rel entries (include step types)
   const parentEntries: RelEntry[] = relationships
@@ -472,6 +508,59 @@ export default function TreeMemberModal({
                 <p className="text-[10px] text-text-faint mt-1">
                   Pencil icon changes parent ↔ step-parent · × removes the link
                 </p>
+              )}
+            </div>
+          )}
+
+          {/* Add personal connection to this node */}
+          {showConnect && (
+            <div className="flex flex-col gap-3 border-t border-border pt-4">
+              <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
+                How do you know {member.name.split(" ")[0]}?
+              </span>
+              {connectRel ? (
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-text-muted">
+                    Add yourself as their{" "}
+                    <span className="font-medium text-text">
+                      {connectRel === "parent" ? "parent"
+                        : connectRel === "child" ? "child"
+                        : connectRel === "sibling" ? "sibling"
+                        : connectRel === "spouse" ? "spouse"
+                        : "step-parent"}
+                    </span>?
+                  </p>
+                  <div className="flex gap-2">
+                    <Button onClick={handleConnect} loading={connecting} className="flex-1">
+                      Confirm
+                    </Button>
+                    <button
+                      onClick={() => setConnectRel(null)}
+                      className="px-3 py-2 rounded-xl border border-border text-sm text-text-muted hover:text-text transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: "child", label: "Their parent", desc: "I am their parent" },
+                    { value: "parent", label: "Their child", desc: "I am their child" },
+                    { value: "sibling", label: "Their sibling", desc: "Brother or sister" },
+                    { value: "spouse", label: "Their spouse", desc: "Husband or wife" },
+                    { value: "step_parent", label: "Their step-parent", desc: "Step relationship" },
+                  ].map((r) => (
+                    <button
+                      key={r.value}
+                      onClick={() => setConnectRel(r.value)}
+                      className="flex flex-col gap-0.5 p-3 bg-bg-3 hover:bg-bg-4 border border-border hover:border-accent/50 rounded-xl transition-all text-left"
+                    >
+                      <span className="text-xs font-semibold text-text">{r.label}</span>
+                      <span className="text-[11px] text-text-muted">{r.desc}</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           )}

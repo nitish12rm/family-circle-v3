@@ -110,13 +110,19 @@ function computeRelLabels(
     adj.get(r.member_id)?.push({ id: r.related_member_id, step });
   }
 
-  // Derive virtual sibling edges from shared parents so that children of the
-  // same (possibly placeholder) parent are always treated as siblings in the
-  // BFS even when explicit sibling DB records are missing.
+  // ── Virtual sibling edges ─────────────────────────────────────────────────
+  // Helper to add a virtual sibling edge if one doesn't already exist
+  const addVirtualSibling = (a: string, b: string) => {
+    const aAdj = adj.get(a);
+    if (aAdj && !aAdj.some((e) => e.id === b)) aAdj.push({ id: b, step: "sibling" });
+    const bAdj = adj.get(b);
+    if (bAdj && !bAdj.some((e) => e.id === a)) bAdj.push({ id: a, step: "sibling" });
+  };
+
+  // Pass 1: derive virtual siblings from shared parent nodes
   const childrenOf = new Map<string, string[]>();
   for (const r of relationships) {
     if (r.type === "parent") {
-      // r.member_id is the parent, r.related_member_id is the child
       const list = childrenOf.get(r.member_id) ?? [];
       list.push(r.related_member_id);
       childrenOf.set(r.member_id, list);
@@ -125,12 +131,40 @@ function computeRelLabels(
   for (const children of childrenOf.values()) {
     for (let i = 0; i < children.length; i++) {
       for (let j = i + 1; j < children.length; j++) {
-        const a = children[i], b = children[j];
-        // Only add virtual edge if no real sibling edge already exists
-        const aAdj = adj.get(a);
-        if (aAdj && !aAdj.some((e) => e.id === b)) aAdj.push({ id: b, step: "sibling" });
-        const bAdj = adj.get(b);
-        if (bAdj && !bAdj.some((e) => e.id === a)) bAdj.push({ id: a, step: "sibling" });
+        addVirtualSibling(children[i], children[j]);
+      }
+    }
+  }
+
+  // Pass 2: transitive sibling closure via union-find
+  // A↔B and B↔C → virtual A↔C (handles chains without a shared parent node)
+  {
+    const ufParent = new Map<string, string>(members.map((m) => [m.id, m.id]));
+    const ufFind = (id: string): string => {
+      const p = ufParent.get(id) ?? id;
+      if (p === id) return id;
+      const root = ufFind(p);
+      ufParent.set(id, root);
+      return root;
+    };
+    for (const r of relationships) {
+      if (r.type === "sibling") {
+        const ra = ufFind(r.member_id), rb = ufFind(r.related_member_id);
+        if (ra !== rb) ufParent.set(ra, rb);
+      }
+    }
+    const sibGroups = new Map<string, string[]>();
+    for (const m of members) {
+      const root = ufFind(m.id);
+      const g = sibGroups.get(root) ?? [];
+      g.push(m.id);
+      sibGroups.set(root, g);
+    }
+    for (const g of sibGroups.values()) {
+      for (let i = 0; i < g.length; i++) {
+        for (let j = i + 1; j < g.length; j++) {
+          addVirtualSibling(g[i], g[j]);
+        }
       }
     }
   }
@@ -868,6 +902,10 @@ export default function TreeView() {
             const newData = { ...treeData, relationships: newRels };
             setTreeData(newData);
             setPositions(buildLayout(newData.members, newData.relationships));
+          }}
+          onRelAdded={() => {
+            loadTree();
+            setSelectedMember(null);
           }}
         />
       )}

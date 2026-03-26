@@ -54,10 +54,16 @@ export async function POST(
     const { userId } = requireAuth(req);
     await connectDB();
     const { familyId } = await params;
-    const admin = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
-    if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
     const { member_id, related_member_id, type } = await req.json();
+
+    const admin = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+    if (!admin) {
+      // Allow if the user's own tree node is one of the two members
+      const myNode = await TreeMember.findOne({ family_id: familyId, profile_id: userId }).lean() as unknown as { _id: string } | null;
+      if (!myNode || (member_id !== String(myNode._id) && related_member_id !== String(myNode._id))) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+    }
 
     await TreeRelationship.create([
       { _id: randomUUID(), family_id: familyId, member_id, related_member_id, type },
