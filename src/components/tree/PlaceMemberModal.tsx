@@ -11,7 +11,7 @@ import { useAuthStore } from "@/store/authStore";
 import type { TreeMember, TreeRelationship } from "@/types";
 
 type Step = "root" | "anchor" | "relation" | "preview";
-type Relation = "child" | "parent" | "sibling" | "spouse" | "cousin" | "uncle_aunt" | "niece_nephew" | "none";
+type Relation = "child" | "parent" | "sibling" | "spouse" | "cousin" | "2nd_cousin" | "3rd_cousin" | "uncle_aunt" | "niece_nephew" | "none";
 
 function getRelations(gender?: string): { value: Relation; label: string; desc: string; emoji: string; extended?: boolean }[] {
   const m = gender === "male";
@@ -57,9 +57,23 @@ function getRelations(gender?: string): { value: Relation; label: string; desc: 
     },
     {
       value: "cousin",
-      label: "Their cousin",
+      label: "1st Cousin",
       desc: "Our parents are siblings",
       emoji: "🤝",
+      extended: true,
+    },
+    {
+      value: "2nd_cousin",
+      label: "2nd Cousin",
+      desc: "Our grandparents are siblings",
+      emoji: "🔗",
+      extended: true,
+    },
+    {
+      value: "3rd_cousin",
+      label: "3rd Cousin / Distant",
+      desc: "Our great-grandparents are siblings",
+      emoji: "🌐",
       extended: true,
     },
     {
@@ -152,10 +166,48 @@ function buildPreview(
 
   } else if (relation === "cousin") {
     const parentRels = rels(anchor.id, "child");
-    lines.push(`Linked as cousin of ${anchor.name} (our parents are siblings).`);
-    placeholders.push("Unknown Parent — your parent (placeholder)");
+    lines.push(`Linked as 1st cousin of ${anchor.name} (parents are siblings).`);
+    placeholders.push("Unknown Parent — your parent");
     if (parentRels.length === 0) {
-      placeholders.push(`Unknown Parent — ${anchor.name}'s parent (placeholder)`);
+      placeholders.push(`Unknown Parent — ${anchor.name}'s parent`);
+    }
+
+  } else if (relation === "2nd_cousin") {
+    const parentRels = rels(anchor.id, "child");
+    lines.push(`Linked as 2nd cousin of ${anchor.name} (grandparents are siblings).`);
+    placeholders.push("Unknown Grandparent — your grandparent");
+    placeholders.push("Unknown Parent — your parent");
+    if (parentRels.length > 0) {
+      const gparentRels = rels(parentRels[0].related_member_id, "child");
+      if (gparentRels.length === 0) {
+        placeholders.push(`Unknown Grandparent — ${anchor.name}'s grandparent`);
+      }
+    } else {
+      placeholders.push(`Unknown Parent — ${anchor.name}'s parent`);
+      placeholders.push(`Unknown Grandparent — ${anchor.name}'s grandparent`);
+    }
+
+  } else if (relation === "3rd_cousin") {
+    const parentRels = rels(anchor.id, "child");
+    lines.push(`Linked as 3rd cousin of ${anchor.name} (great-grandparents are siblings).`);
+    placeholders.push("Unknown Great-Grandparent — your side");
+    placeholders.push("Unknown Grandparent — your side");
+    placeholders.push("Unknown Parent — your side");
+    if (parentRels.length === 0) {
+      placeholders.push(`Unknown Parent — ${anchor.name}'s side`);
+      placeholders.push(`Unknown Grandparent — ${anchor.name}'s side`);
+      placeholders.push(`Unknown Great-Grandparent — ${anchor.name}'s side`);
+    } else {
+      const gparentRels = rels(parentRels[0].related_member_id, "child");
+      if (gparentRels.length === 0) {
+        placeholders.push(`Unknown Grandparent — ${anchor.name}'s side`);
+        placeholders.push(`Unknown Great-Grandparent — ${anchor.name}'s side`);
+      } else {
+        const ggparentRels = rels(gparentRels[0].related_member_id, "child");
+        if (ggparentRels.length === 0) {
+          placeholders.push(`Unknown Great-Grandparent — ${anchor.name}'s side`);
+        }
+      }
     }
 
   } else if (relation === "none") {
