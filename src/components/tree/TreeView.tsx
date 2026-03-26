@@ -905,7 +905,6 @@ export default function TreeView() {
           }}
           onRelAdded={() => {
             loadTree();
-            setSelectedMember(null);
           }}
         />
       )}
