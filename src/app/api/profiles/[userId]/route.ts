@@ -59,12 +59,11 @@ export async function GET(
       commentCountMap[c.post_id] = (commentCountMap[c.post_id] ?? 0) + 1;
     }
 
-    // Public documents uploaded by this user in shared families
-    const documents = await Document.find({
-      uploaded_by: userId,
-      family_id: { $in: sharedFamilyIds },
-      visibility: "public",
-    })
+    // Own profile: show all docs; other profile: public only
+    const isSelf = viewerId === userId;
+    const docQuery: Record<string, unknown> = { uploaded_by: userId, family_id: { $in: sharedFamilyIds } };
+    if (!isSelf) docQuery.visibility = "public";
+    const documents = await Document.find(docQuery)
       .sort({ created_at: -1 })
       .lean() as Record<string, unknown>[];
 
@@ -98,6 +97,7 @@ export async function GET(
         mime_type: d.mime_type,
         description: d.description,
         category: d.category ?? "Other",
+        visibility: d.visibility ?? "public",
         created_at: d.created_at,
       })),
       stats: {
