@@ -59,7 +59,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   if (!token || !user) return null;
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col">
+    <div className="bg-bg flex flex-col overflow-hidden" style={{ height: "100dvh" }}>
       <TopBar profile={profile} />
       <main
         className="flex-1 overflow-y-auto"
