@@ -210,7 +210,11 @@ function buildLayout(
     if (r.type === "spouse") spouseOf[r.member_id] = r.related_member_id;
   }
 
-  // Designate one member of each spouse pair as "secondary" — placed beside primary
+  // Designate one member of each spouse pair as "secondary" — placed beside primary.
+  // The member WITH parents should be primary (traversed from their parents down).
+  // The member WITHOUT parents should be secondary (placed beside their spouse).
+  // This prevents a childless spouse being traversed as a root and pulling their
+  // partner (who has parents) out of the correct generation.
   const secondaryIds = new Set<string>();
   const seenPairs = new Set<string>();
   for (const r of relationships) {
@@ -218,7 +222,18 @@ function buildLayout(
     const key = [r.member_id, r.related_member_id].sort().join("|");
     if (seenPairs.has(key)) continue;
     seenPairs.add(key);
-    secondaryIds.add(r.related_member_id);
+    const aHasParents = (parentsOf[r.member_id]?.length ?? 0) > 0;
+    const bHasParents = (parentsOf[r.related_member_id]?.length ?? 0) > 0;
+    if (aHasParents && !bHasParents) {
+      // a has parents → a is primary (traversed from its parents), b is secondary
+      secondaryIds.add(r.related_member_id);
+    } else if (!aHasParents && bHasParents) {
+      // b has parents → b is primary (traversed from its parents), a is secondary
+      secondaryIds.add(r.member_id);
+    } else {
+      // both or neither have parents — fall back to original rule
+      secondaryIds.add(r.related_member_id);
+    }
   }
 
   // Roots: no parents and not a secondary spouse
