@@ -1,13 +1,12 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, GitBranch, MessageCircle, Users, User } from "lucide-react";
+import { Home, GitBranch, MessageCircle, User } from "lucide-react";
 
 const tabs = [
   { href: "/feed", icon: Home, label: "Feed" },
   { href: "/tree", icon: GitBranch, label: "Tree" },
   { href: "/chat", icon: MessageCircle, label: "Chat" },
-  { href: "/family", icon: Users, label: "Family" },
   { href: "/profile", icon: User, label: "Profile" },
 ];
 
