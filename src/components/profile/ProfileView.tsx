@@ -73,6 +73,7 @@ export default function ProfileView() {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [lightbox, setLightbox] = useState<{ urls: string[]; postId: string } | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -287,8 +288,8 @@ export default function ProfileView() {
               return (
                 <button
                   key={post.id}
-                  onClick={() => router.push(`/post/${post.id}`)}
-                  className="aspect-square overflow-hidden relative group bg-bg-2 rounded-2xl"
+                  onClick={() => media.length > 0 ? setLightbox({ urls: media, postId: post.id }) : router.push(`/post/${post.id}`)}
+                  className="aspect-square overflow-hidden relative group bg-black rounded-2xl"
                 >
                   {media.length > 0 ? (
                     <>
@@ -296,9 +297,8 @@ export default function ProfileView() {
                       <img
                         src={media[0]}
                         alt=""
-                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        className="w-full h-full object-contain"
                       />
-                      {/* Hover overlay — shows likes + comments like Instagram */}
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100">
                         <div className="flex items-center gap-1 text-white">
                           <Heart size={15} className="fill-white" strokeWidth={0} />
@@ -309,7 +309,6 @@ export default function ProfileView() {
                           <span className="text-xs font-bold">{comments}</span>
                         </div>
                       </div>
-                      {/* Multi-image badge */}
                       {media.length > 1 && (
                         <div className="absolute top-1.5 right-1.5 opacity-90">
                           <Grid3X3 size={13} className="text-white drop-shadow-sm" />
@@ -519,6 +518,35 @@ export default function ProfileView() {
           <Button onClick={handleSave} loading={saving} className="w-full">Save</Button>
         </div>
       </Modal>
+
+      {/* Image lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-50 bg-black/95 flex flex-col items-center justify-center"
+          onClick={() => setLightbox(null)}
+        >
+          <div className="relative w-full h-full flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={lightbox.urls[0]}
+              alt=""
+              className="max-w-full max-h-full object-contain rounded-xl"
+            />
+            <button
+              onClick={() => setLightbox(null)}
+              className="absolute top-4 right-4 p-2 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+            >
+              <X size={20} />
+            </button>
+            <button
+              onClick={() => { setLightbox(null); router.push(`/post/${lightbox.postId}`); }}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 px-5 py-2 rounded-full bg-black/60 text-white text-sm font-medium hover:bg-black/80 transition-colors border border-white/20"
+            >
+              View post
+            </button>
+          </div>
+        </div>
+      )}
 
       <DocPreviewModal doc={previewDoc} onClose={() => setPreviewDoc(null)} />
     </div>
