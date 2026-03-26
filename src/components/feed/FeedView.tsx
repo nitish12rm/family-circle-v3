@@ -11,6 +11,7 @@ import Modal from "@/components/ui/Modal";
 import Spinner from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Input";
 import PostCard from "@/components/post/PostCard";
+import { compressImage } from "@/lib/imageCompression";
 import type { Post } from "@/types";
 
 export default function FeedView() {
@@ -55,8 +56,9 @@ export default function FeedView() {
     if (!file) return;
     setUploading(true);
     try {
+      const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", toUpload);
       formData.append("folder", "family-circle-v3/posts");
       const res = await api.upload<{ url: string }>("/api/upload", formData);
       setMediaUrls((prev) => [...prev, res.url]);
