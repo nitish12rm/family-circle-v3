@@ -287,7 +287,7 @@ export default function TreeView() {
   const [addOpen, setAddOpen] = useState(false);
   const [addRelOpen, setAddRelOpen] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", gender: "", dob: "", notes: "" });
-  const [relForm, setRelForm] = useState({ member_id: "", related_member_id: "", type: "child" });
+  const [relForm, setRelForm] = useState({ member_id: "", related_member_id: "", type: "parent" });
   const [saving, setSaving] = useState(false);
 
   const loadTree = useCallback(async () => {
@@ -415,11 +415,31 @@ export default function TreeView() {
   const handleAddRelationship = async () => {
     if (!relForm.member_id || !relForm.related_member_id || !activeFamilyId) return;
     setSaving(true);
+    // Map admin UI "A is X of B" → connect endpoint perspective (from A's view of B)
+    // step_parent and step_child are flipped because connect endpoint describes what
+    // the TARGET is to YOU, not what YOU are to the target.
+    const CONNECT_REL_MAP: Record<string, string> = {
+      parent:       "parent",
+      child:        "child",
+      sibling:      "sibling",
+      spouse:       "spouse",
+      step_parent:  "step_child",   // A is step-parent of B → B is A's step-child
+      step_child:   "step_parent",  // A is step-child of B → B is A's step-parent
+      uncle_aunt:   "uncle_aunt",
+      niece_nephew: "niece_nephew",
+      cousin:       "cousin",
+      "2nd_cousin": "2nd_cousin",
+      "3rd_cousin": "3rd_cousin",
+    };
     try {
-      await api.post(`/api/families/${activeFamilyId}/tree/relationships`, relForm);
+      await api.post(`/api/families/${activeFamilyId}/tree/connect`, {
+        my_member_id: relForm.member_id,
+        target_member_id: relForm.related_member_id,
+        relationship: CONNECT_REL_MAP[relForm.type] ?? relForm.type,
+      });
       await loadTree();
       setAddRelOpen(false);
-      setRelForm({ member_id: "", related_member_id: "", type: "child" });
+      setRelForm({ member_id: "", related_member_id: "", type: "parent" });
       showToast("Relationship added!", "success");
     } catch {
       showToast("Failed to add relationship", "error");
@@ -935,12 +955,23 @@ export default function TreeView() {
               onChange={(e) => setRelForm({ ...relForm, type: e.target.value })}
               className="w-full bg-bg-2 border border-border rounded-xl px-4 py-2.5 text-sm text-text focus:outline-none focus:border-accent"
             >
-              <option value="parent">is biological parent of</option>
-              <option value="child">is biological child of</option>
-              <option value="step_parent">is step-parent of</option>
-              <option value="step_child">is step-child of</option>
-              <option value="spouse">is spouse of</option>
-              <option value="sibling">is sibling of</option>
+              <optgroup label="Immediate">
+                <option value="parent">is parent of</option>
+                <option value="child">is child of</option>
+                <option value="spouse">is spouse / partner of</option>
+                <option value="sibling">is sibling of</option>
+                <option value="step_parent">is step-parent of</option>
+                <option value="step_child">is step-child of</option>
+              </optgroup>
+              <optgroup label="Extended">
+                <option value="uncle_aunt">is uncle / aunt of</option>
+                <option value="niece_nephew">is niece / nephew of</option>
+                <option value="cousin">is 1st cousin of</option>
+              </optgroup>
+              <optgroup label="Distant">
+                <option value="2nd_cousin">is 2nd cousin of</option>
+                <option value="3rd_cousin">is 3rd cousin of</option>
+              </optgroup>
             </select>
           </div>
           <div className="flex flex-col gap-1.5">
