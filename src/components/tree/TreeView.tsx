@@ -43,48 +43,75 @@ function buildLayout(
 ): NodePosition[] {
   if (members.length === 0) return [];
 
-  // Build adjacency
+  // Build adjacency maps
   const childrenOf: Record<string, string[]> = {};
   const parentsOf: Record<string, string[]> = {};
+  const spouseOf: Record<string, string> = {};
+
   for (const m of members) {
     childrenOf[m.id] = [];
     parentsOf[m.id] = [];
   }
   for (const r of relationships) {
-    if (r.type === "parent") {
-      childrenOf[r.member_id]?.push(r.related_member_id);
-    }
-    if (r.type === "child") {
-      parentsOf[r.member_id]?.push(r.related_member_id);
-    }
+    if (r.type === "parent") childrenOf[r.member_id]?.push(r.related_member_id);
+    if (r.type === "child") parentsOf[r.member_id]?.push(r.related_member_id);
+    if (r.type === "spouse") spouseOf[r.member_id] = r.related_member_id;
   }
 
-  // Find roots (no parents)
-  const roots = members.filter((m) => parentsOf[m.id]?.length === 0);
-  if (roots.length === 0) roots.push(members[0]);
+  // For each spouse pair, designate one as "secondary" — it is placed AFTER
+  // the main traversal, next to its primary, instead of being traversed independently.
+  // This prevents both spouses from independently centering over the same children.
+  const secondaryIds = new Set<string>();
+  const seenPairs = new Set<string>();
+  for (const r of relationships) {
+    if (r.type !== "spouse") continue;
+    const key = [r.member_id, r.related_member_id].sort().join("|");
+    if (seenPairs.has(key)) continue;
+    seenPairs.add(key);
+    secondaryIds.add(r.related_member_id); // related_member_id is always secondary
+  }
+
+  // Roots: no parents and not a secondary spouse
+  const roots = members.filter(
+    (m) => parentsOf[m.id].length === 0 && !secondaryIds.has(m.id)
+  );
+  if (roots.length === 0) {
+    roots.push(members.find((m) => !secondaryIds.has(m.id)) ?? members[0]);
+  }
 
   const positioned = new Map<string, NodePosition>();
   let globalX = 0;
 
   function placeSubtree(memberId: string, depth: number): number {
-    if (positioned.has(memberId)) return 0;
+    if (positioned.has(memberId)) return positioned.get(memberId)!.x;
     const member = members.find((m) => m.id === memberId);
-    if (!member) return 0;
+    if (!member) return globalX;
 
-    const children = childrenOf[memberId] ?? [];
-    if (children.length === 0) {
-      const x = globalX;
-      globalX += NODE_GAP;
-      positioned.set(memberId, { x, y: depth * GEN_GAP, member });
-      return x;
+    const spouseId = spouseOf[memberId];
+    const hasSecondarySpouse = !!spouseId && secondaryIds.has(spouseId);
+
+    // Collect unique children from both this member and their secondary spouse
+    const myChildren = childrenOf[memberId] ?? [];
+    const spouseChildren = hasSecondarySpouse ? (childrenOf[spouseId] ?? []) : [];
+    const allChildren = [...new Set([...myChildren, ...spouseChildren])].filter(
+      (cid) => !secondaryIds.has(cid)
+    );
+
+    let centerX: number;
+    if (allChildren.length === 0) {
+      // Leaf — reserve space for two nodes if coupled, one otherwise
+      centerX = hasSecondarySpouse ? globalX + NODE_GAP / 2 : globalX;
+      globalX += hasSecondarySpouse ? NODE_GAP * 2 : NODE_GAP;
+    } else {
+      const childXs: number[] = [];
+      for (const cid of allChildren) {
+        childXs.push(placeSubtree(cid, depth + 1));
+      }
+      centerX = (Math.min(...childXs) + Math.max(...childXs)) / 2;
     }
 
-    const childXs: number[] = [];
-    for (const cid of children) {
-      childXs.push(placeSubtree(cid, depth + 1));
-    }
-
-    const x = (Math.min(...childXs) + Math.max(...childXs)) / 2;
+    // If paired, place primary to the LEFT of center so spouse slots in to the right
+    const x = hasSecondarySpouse ? centerX - NODE_GAP / 2 : centerX;
     positioned.set(memberId, { x, y: depth * GEN_GAP, member });
     return x;
   }
@@ -93,20 +120,38 @@ function buildLayout(
     placeSubtree(root.id, 0);
   }
 
-  // Place any unpositioned members
-  const allPositioned = new Set(positioned.keys());
+  // Place any non-secondary members that were missed (disconnected nodes)
   for (const m of members) {
-    if (!allPositioned.has(m.id)) {
-      positioned.set(m.id, {
-        x: globalX,
-        y: 0,
-        member: m,
-      });
+    if (!positioned.has(m.id) && !secondaryIds.has(m.id)) {
+      positioned.set(m.id, { x: globalX, y: 0, member: m });
       globalX += NODE_GAP;
     }
   }
 
-  return Array.from(positioned.values());
+  // Now place secondary spouses directly beside their primary
+  for (const secondaryId of secondaryIds) {
+    const primaryId = spouseOf[secondaryId];
+    const primaryPos = primaryId ? positioned.get(primaryId) : null;
+    const sec = members.find((m) => m.id === secondaryId);
+    if (!sec) continue;
+
+    if (primaryPos) {
+      positioned.set(secondaryId, {
+        x: primaryPos.x + NODE_GAP,
+        y: primaryPos.y,
+        member: sec,
+      });
+    } else {
+      positioned.set(secondaryId, { x: globalX, y: 0, member: sec });
+      globalX += NODE_GAP;
+    }
+  }
+
+  // Normalize: shift everything so the minimum X is 0 (avoids negative SVG coords)
+  const allPos = Array.from(positioned.values());
+  const minX = Math.min(...allPos.map((p) => p.x));
+  const offset = minX < 0 ? -minX + 20 : 0;
+  return offset > 0 ? allPos.map((p) => ({ ...p, x: p.x + offset })) : allPos;
 }
 
 export default function TreeView() {
@@ -368,6 +413,8 @@ export default function TreeView() {
               const my = (y1 + y2) / 2;
 
               if (rel.type === "spouse") {
+                // Relationships are stored bidirectionally — only draw left-to-right
+                if (from.x >= to.x) return null;
                 return (
                   <line
                     key={rel.id}
