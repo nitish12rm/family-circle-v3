@@ -232,13 +232,21 @@ export default function ProfileView() {
           </div>
         </div>
 
-        {/* Edit Profile button */}
-        <button
-          onClick={openEdit}
-          className="w-full py-1.5 text-sm font-semibold border border-border rounded-lg bg-bg-2 hover:bg-bg-3 text-text transition-colors"
-        >
-          Edit Profile
-        </button>
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          <button
+            onClick={openEdit}
+            className="flex-1 py-1.5 text-sm font-semibold border border-border rounded-lg bg-bg-2 hover:bg-bg-3 text-text transition-colors"
+          >
+            Edit Profile
+          </button>
+          <button
+            onClick={() => router.push("/documents")}
+            className="flex-1 py-1.5 text-sm font-semibold border border-border rounded-lg bg-bg-2 hover:bg-bg-3 text-text transition-colors flex items-center justify-center gap-1.5"
+          >
+            <FileText size={14} /> Documents
+          </button>
+        </div>
       </div>
 
       {/* Tab bar */}
