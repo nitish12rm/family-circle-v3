@@ -1,12 +1,14 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { Input } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 
 export default function AuthForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect");
   const { setAuth } = useAuthStore();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [form, setForm] = useState({ name: "", email: "", password: "", gender: "" });
@@ -36,7 +38,18 @@ export default function AuthForm() {
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
 
       setAuth(data.token, data.user);
-      router.replace(mode === "signup" ? "/onboarding" : "/feed");
+      if (mode === "signup") {
+        // Preserve any pending redirect (e.g. /join/[code]) through onboarding
+        if (redirect) sessionStorage.setItem("post-onboard-redirect", redirect);
+        router.replace("/onboarding");
+      } else {
+        if (!data.onboarding_complete) {
+          if (redirect) sessionStorage.setItem("post-onboard-redirect", redirect);
+          router.replace("/onboarding");
+        } else {
+          router.replace(redirect ?? "/feed");
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

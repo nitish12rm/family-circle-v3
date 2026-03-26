@@ -7,7 +7,7 @@ import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
 
 type RelType = "parent" | "child" | "spouse" | "sibling";
-type PlaceRelType = RelType | "cousin" | "uncle_aunt" | "niece_nephew" | "none";
+type PlaceRelType = RelType | "cousin" | "2nd_cousin" | "3rd_cousin" | "uncle_aunt" | "niece_nephew" | "none";
 
 const INVERSE: Record<RelType, RelType> = {
   parent: "child",
@@ -204,6 +204,95 @@ export async function POST(
         addRel(anchorParentId, anchorId, "parent");
         addRel(myParentId, anchorParentId, "sibling");
       }
+
+    // ── 2ND COUSIN: grandparents are siblings (share a great-grandparent) ────
+    } else if (relationship === "2nd_cousin") {
+      // Walk up anchor's lineage to find/create a grandparent node
+      const anchorParentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "child",
+      }).lean() as unknown as { related_member_id: string }[];
+
+      let anchorGParentId: string;
+
+      if (anchorParentRels.length > 0) {
+        const anchorParentId = anchorParentRels[0].related_member_id;
+        const anchorGPRels = await TreeRelationship.find({
+          family_id: familyId, member_id: anchorParentId, type: "child",
+        }).lean() as unknown as { related_member_id: string }[];
+
+        if (anchorGPRels.length > 0) {
+          // Anchor already has a grandparent — use it
+          anchorGParentId = anchorGPRels[0].related_member_id;
+        } else {
+          // Anchor's parent has no parent yet — create grandparent placeholder
+          anchorGParentId = addPlaceholder("Unknown Grandparent");
+          addRel(anchorGParentId, anchorParentId, "parent");
+        }
+      } else {
+        // Anchor has no parent yet — create parent + grandparent chain
+        const phParentId = addPlaceholder("Unknown Parent");
+        addRel(phParentId, anchorId, "parent");
+        anchorGParentId = addPlaceholder("Unknown Grandparent");
+        addRel(anchorGParentId, phParentId, "parent");
+      }
+
+      // My branch: my grandparent is a sibling of anchor's grandparent
+      const myGParentId = addPlaceholder("Unknown Grandparent");
+      addRel(myGParentId, anchorGParentId, "sibling");
+      const myParentId = addPlaceholder("Unknown Parent");
+      addRel(myGParentId, myParentId, "parent");
+      addRel(myParentId, newMemberId, "parent");
+
+    // ── 3RD COUSIN: great-grandparents are siblings (share great-great-gp) ─
+    } else if (relationship === "3rd_cousin") {
+      // Walk up 3 levels from anchor, creating placeholders as needed
+      const anchorParentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorId, type: "child",
+      }).lean() as unknown as { related_member_id: string }[];
+
+      let anchorGGParentId: string;
+
+      if (anchorParentRels.length > 0) {
+        const anchorParentId = anchorParentRels[0].related_member_id;
+        const anchorGPRels = await TreeRelationship.find({
+          family_id: familyId, member_id: anchorParentId, type: "child",
+        }).lean() as unknown as { related_member_id: string }[];
+
+        if (anchorGPRels.length > 0) {
+          const anchorGParentId = anchorGPRels[0].related_member_id;
+          const anchorGGPRels = await TreeRelationship.find({
+            family_id: familyId, member_id: anchorGParentId, type: "child",
+          }).lean() as unknown as { related_member_id: string }[];
+
+          if (anchorGGPRels.length > 0) {
+            anchorGGParentId = anchorGGPRels[0].related_member_id;
+          } else {
+            anchorGGParentId = addPlaceholder("Unknown Great-Grandparent");
+            addRel(anchorGGParentId, anchorGParentId, "parent");
+          }
+        } else {
+          const phGParentId = addPlaceholder("Unknown Grandparent");
+          addRel(phGParentId, anchorParentId, "parent");
+          anchorGGParentId = addPlaceholder("Unknown Great-Grandparent");
+          addRel(anchorGGParentId, phGParentId, "parent");
+        }
+      } else {
+        const phParentId = addPlaceholder("Unknown Parent");
+        addRel(phParentId, anchorId, "parent");
+        const phGParentId = addPlaceholder("Unknown Grandparent");
+        addRel(phGParentId, phParentId, "parent");
+        anchorGGParentId = addPlaceholder("Unknown Great-Grandparent");
+        addRel(anchorGGParentId, phGParentId, "parent");
+      }
+
+      // My branch: my great-grandparent is a sibling of anchor's great-grandparent
+      const myGGParentId = addPlaceholder("Unknown Great-Grandparent");
+      addRel(myGGParentId, anchorGGParentId, "sibling");
+      const myGParentId = addPlaceholder("Unknown Grandparent");
+      addRel(myGGParentId, myGParentId, "parent");
+      const myParentId = addPlaceholder("Unknown Parent");
+      addRel(myGParentId, myParentId, "parent");
+      addRel(myParentId, newMemberId, "parent");
 
     // ── NONE: place without any connection ───────────────────────────────────
     // (user is in the family but relationship not yet known — floating node)

@@ -17,6 +17,12 @@ export default function OnboardingFlow() {
   const [step, setStep] = useState<Step>("profile");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pendingRedirect, setPendingRedirect] = useState<string | null>(null);
+
+  useEffect(() => {
+    const r = sessionStorage.getItem("post-onboard-redirect");
+    if (r) setPendingRedirect(r);
+  }, []);
 
   const [profileForm, setProfileForm] = useState({
     phone: "",
@@ -28,8 +34,13 @@ export default function OnboardingFlow() {
   const [inviteCode, setInviteCode] = useState("");
 
   useEffect(() => {
-    if (!token) router.replace("/auth");
-  }, [token, router]);
+    if (!token) { router.replace("/auth"); return; }
+    // If onboarding already complete (e.g. returning user navigated here directly), skip to feed
+    api.get<Profile>("/api/profile").then((p) => {
+      if (p.onboarding_complete) router.replace("/feed");
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleProfileNext = async () => {
     setLoading(true);
@@ -83,12 +94,14 @@ export default function OnboardingFlow() {
     }
   };
 
-  const completeOnboarding = async (nextRoute = "/feed") => {
+  const completeOnboarding = async (nextRoute?: string) => {
+    const route = nextRoute ?? pendingRedirect ?? "/feed";
+    sessionStorage.removeItem("post-onboard-redirect");
     const p = await api.patch<Profile>("/api/profile", {
       onboarding_complete: true,
     });
     setProfile(p);
-    router.replace(nextRoute);
+    router.replace(route);
   };
 
   return (
@@ -174,58 +187,74 @@ export default function OnboardingFlow() {
               <h2 className="text-lg font-semibold text-text mb-1">
                 Your Family
               </h2>
-              <p className="text-sm text-text-muted mb-5">
-                Create a new family or join one with an invite code.
-              </p>
 
-              {/* Toggle */}
-              <div className="flex bg-bg-3 rounded-xl p-1 mb-5">
-                {(["create", "join"] as const).map((m) => (
-                  <button
-                    key={m}
-                    onClick={() => setFamilyMode(m)}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                      familyMode === m
-                        ? "bg-bg-2 text-text shadow-sm"
-                        : "text-text-muted"
-                    }`}
-                  >
-                    {m === "create" ? "Create" : "Join"}
-                  </button>
-                ))}
-              </div>
+              {pendingRedirect?.startsWith("/join/") ? (
+                /* ── Pending invite flow ── */
+                <div className="flex flex-col gap-4">
+                  <p className="text-sm text-text-muted">
+                    You have a family invite waiting. Finish setup and we&apos;ll take you straight there.
+                  </p>
+                  <div className="bg-accent/10 border border-accent/30 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <span className="text-xl">👪</span>
+                    <p className="text-sm font-medium text-accent">Family invite pending</p>
+                  </div>
+                  {error && <p className="text-sm text-error">{error}</p>}
+                  <Button onClick={() => completeOnboarding()} loading={loading} className="w-full">
+                    Continue to join family →
+                  </Button>
+                </div>
+              ) : (
+                /* ── Normal create / join flow ── */
+                <>
+                  <p className="text-sm text-text-muted mb-5">
+                    Create a new family or join one with an invite code.
+                  </p>
 
-              <div className="flex flex-col gap-4">
-                {familyMode === "create" ? (
-                  <Input
-                    label="Family Name"
-                    placeholder="The Smith Family"
-                    value={familyName}
-                    onChange={(e) => setFamilyName(e.target.value)}
-                  />
-                ) : (
-                  <Input
-                    label="Invite Code"
-                    placeholder="Enter 12-character code"
-                    value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value)}
-                  />
-                )}
+                  <div className="flex bg-bg-3 rounded-xl p-1 mb-5">
+                    {(["create", "join"] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setFamilyMode(m)}
+                        className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                          familyMode === m
+                            ? "bg-bg-2 text-text shadow-sm"
+                            : "text-text-muted"
+                        }`}
+                      >
+                        {m === "create" ? "Create" : "Join"}
+                      </button>
+                    ))}
+                  </div>
 
-                {error && <p className="text-sm text-error">{error}</p>}
+                  <div className="flex flex-col gap-4">
+                    {familyMode === "create" ? (
+                      <Input
+                        label="Family Name"
+                        placeholder="The Smith Family"
+                        value={familyName}
+                        onChange={(e) => setFamilyName(e.target.value)}
+                      />
+                    ) : (
+                      <Input
+                        label="Invite Code"
+                        placeholder="Enter 12-character code"
+                        value={inviteCode}
+                        onChange={(e) => setInviteCode(e.target.value)}
+                      />
+                    )}
 
-                <Button
-                  onClick={
-                    familyMode === "create"
-                      ? handleFamilyCreate
-                      : handleFamilyJoin
-                  }
-                  loading={loading}
-                  className="w-full"
-                >
-                  {familyMode === "create" ? "Create Family" : "Join Family"}
-                </Button>
-              </div>
+                    {error && <p className="text-sm text-error">{error}</p>}
+
+                    <Button
+                      onClick={familyMode === "create" ? handleFamilyCreate : handleFamilyJoin}
+                      loading={loading}
+                      className="w-full"
+                    >
+                      {familyMode === "create" ? "Create Family" : "Join Family"}
+                    </Button>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
