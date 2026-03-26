@@ -365,12 +365,27 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
             <div className="flex flex-col gap-3">
               <StepDots current={dotIndex} />
               <div>
-                <p className="text-sm font-medium text-text mb-1">Pick one person you&apos;re related to</p>
+                <p className="text-sm font-medium text-text mb-1">Who do you know here?</p>
                 <p className="text-xs text-text-muted leading-relaxed">
-                  Even if you know multiple people here, pick the{" "}
-                  <span className="font-medium text-text">one you&apos;re closest to</span>.
-                  The tree works out your connection to everyone else automatically.
+                  Tap <span className="font-medium text-text">one person</span> whose relationship to you you&apos;re sure of.
+                  You only need one — your position in the rest of the tree is worked out automatically.
                 </p>
+              </div>
+
+              {/* Priority guide */}
+              <div className="bg-bg-3 border border-border rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
+                <p className="text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Look for in this order</p>
+                {[
+                  { emoji: "1️⃣", label: "Parent", hint: "Dad or Mum" },
+                  { emoji: "2️⃣", label: "Sibling", hint: "Brother or Sister" },
+                  { emoji: "3️⃣", label: "Extended member", hint: "Uncle, Aunt, Cousin — pick any one you know" },
+                ].map((row) => (
+                  <div key={row.label} className="flex items-center gap-2">
+                    <span className="text-sm shrink-0">{row.emoji}</span>
+                    <span className="text-xs font-medium text-text">{row.label}</span>
+                    <span className="text-xs text-text-muted">— {row.hint}</span>
+                  </div>
+                ))}
               </div>
               <div className="flex flex-col gap-1 max-h-52 overflow-y-auto -mx-1 px-1">
                 {selectableMembers.map((m) => {
