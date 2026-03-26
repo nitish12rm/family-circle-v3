@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, ExternalLink, Save, X } from "lucide-react";
+import { Trash2, ExternalLink, Save, X, Pencil } from "lucide-react";
 import Modal from "@/components/ui/Modal";
 import Button from "@/components/ui/Button";
 import Avatar from "@/components/ui/Avatar";
@@ -121,16 +121,16 @@ export default function TreeMemberModal({
     .filter(Boolean) as TreeMember[];
 
   return (
-    <Modal open={!!member} onClose={onClose} title="">
+    <Modal open={!!member} onClose={onClose} title="Family Member">
       {editing ? (
         /* ── Edit mode ─────────────────────────────────── */
-        <div className="flex flex-col gap-4 -mt-2">
-          <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-text">Edit Details</h3>
-            <button onClick={() => setEditing(false)} className="p-1 text-text-muted hover:text-text">
-              <X size={16} />
-            </button>
-          </div>
+        <div className="flex flex-col gap-4">
+          <button
+            onClick={() => setEditing(false)}
+            className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text transition-colors self-start"
+          >
+            <X size={13} /> Cancel edit
+          </button>
           <Input
             label="Full Name"
             value={form.name}
@@ -184,13 +184,13 @@ export default function TreeMemberModal({
         </div>
       ) : (
         /* ── View mode ─────────────────────────────────── */
-        <div className="flex flex-col gap-5 -mt-2">
+        <div className="flex flex-col gap-5">
           {/* Header */}
           <div className="flex items-center gap-4">
-            <Avatar name={member.name} src={member.photo} size={64} />
+            <Avatar name={member.name} src={member.photo} size={56} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg font-semibold text-text">{member.name}</h2>
+                <h2 className="text-base font-semibold text-text">{member.name}</h2>
                 {member.is_deceased && (
                   <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-text-faint/20 text-text-faint border border-text-faint/20">
                     Deceased
@@ -211,13 +211,15 @@ export default function TreeMemberModal({
             <div className="flex gap-1 shrink-0">
               <button
                 onClick={openEdit}
-                className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-text transition-colors text-xs font-medium"
+                className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
+                title="Edit"
               >
-                Edit
+                <Pencil size={15} />
               </button>
               <button
                 onClick={() => { onDelete(member.id); onClose(); }}
                 className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
+                title="Delete"
               >
                 <Trash2 size={15} />
               </button>

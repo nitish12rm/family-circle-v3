@@ -105,7 +105,13 @@ export async function PATCH(
     );
 
     if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(member);
+    const m = member as Record<string, unknown>;
+    return NextResponse.json({
+      id: m._id, family_id: m.family_id, profile_id: m.profile_id,
+      name: m.name, dob: m.dob, dod: m.dod, gender: m.gender,
+      photo: m.photo, status: m.status, notes: m.notes,
+      is_placeholder: m.is_placeholder, is_deceased: m.is_deceased,
+    });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
