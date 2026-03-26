@@ -76,6 +76,7 @@ export async function GET(
         file_size: d.file_size,
         mime_type: d.mime_type,
         description: d.description,
+        category: d.category ?? "Other",
         created_at: d.created_at,
       })),
       stats: {

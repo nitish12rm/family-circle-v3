@@ -100,16 +100,6 @@ export default function UserProfileView({ userId }: { userId: string }) {
     });
   }, [data, search, activeCategory]);
 
-  const groupedDocs = useMemo(() => {
-    if (activeCategory !== "All") return null;
-    const groups: Record<string, PublicDocument[]> = {};
-    for (const doc of filteredDocs) {
-      if (!groups[doc.category]) groups[doc.category] = [];
-      groups[doc.category].push(doc);
-    }
-    return groups;
-  }, [filteredDocs, activeCategory]);
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -297,7 +287,7 @@ export default function UserProfileView({ userId }: { userId: string }) {
               <p className="text-text-muted text-sm">No public documents.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-5">
               {/* Search bar */}
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
@@ -311,36 +301,45 @@ export default function UserProfileView({ userId }: { userId: string }) {
               </div>
 
               {/* Category filter chips */}
-              {categories.length > 2 && (
-                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                  {categories.map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setActiveCategory(cat)}
-                      className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                        activeCategory === cat
-                          ? "bg-accent text-white"
-                          : "bg-bg-2 border border-border text-text-muted hover:text-text"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                {categories.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setActiveCategory(cat)}
+                    className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                      activeCategory === cat
+                        ? "bg-accent text-white"
+                        : "bg-bg-2 border border-border text-text-muted hover:text-text"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
 
               {filteredDocs.length === 0 ? (
                 <div className="text-center py-10">
                   <p className="text-text-muted text-sm">No documents match your search.</p>
                 </div>
-              ) : activeCategory !== "All" || !groupedDocs ? (
-                <div className="flex flex-col gap-3">
-                  {filteredDocs.map((doc) => <DocCard key={doc.id} doc={doc} />)}
-                </div>
               ) : (
-                Object.entries(groupedDocs).map(([cat, catDocs]) => (
-                  <div key={cat}>
-                    <p className="text-xs font-semibold text-text-muted uppercase tracking-wide mb-2">{cat}</p>
+                Object.entries(
+                  filteredDocs.reduce<Record<string, PublicDocument[]>>((acc, doc) => {
+                    const key = doc.category || "Other";
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(doc);
+                    return acc;
+                  }, {})
+                ).map(([cat, catDocs]) => (
+                  <div key={cat} className="flex flex-col gap-2">
+                    {/* Category tag header */}
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold bg-accent/10 text-accent border border-accent/20">
+                        {cat}
+                      </span>
+                      <span className="text-xs text-text-faint">{catDocs.length} doc{catDocs.length !== 1 ? "s" : ""}</span>
+                      <div className="flex-1 h-px bg-border" />
+                    </div>
+                    {/* Cards */}
                     <div className="flex flex-col gap-2">
                       {catDocs.map((doc) => <DocCard key={doc.id} doc={doc} />)}
                     </div>
