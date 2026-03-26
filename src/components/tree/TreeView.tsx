@@ -109,6 +109,31 @@ function computeRelLabels(
     adj.get(r.member_id)?.push({ id: r.related_member_id, step });
   }
 
+  // Derive virtual sibling edges from shared parents so that children of the
+  // same (possibly placeholder) parent are always treated as siblings in the
+  // BFS even when explicit sibling DB records are missing.
+  const childrenOf = new Map<string, string[]>();
+  for (const r of relationships) {
+    if (r.type === "parent") {
+      // r.member_id is the parent, r.related_member_id is the child
+      const list = childrenOf.get(r.member_id) ?? [];
+      list.push(r.related_member_id);
+      childrenOf.set(r.member_id, list);
+    }
+  }
+  for (const children of childrenOf.values()) {
+    for (let i = 0; i < children.length; i++) {
+      for (let j = i + 1; j < children.length; j++) {
+        const a = children[i], b = children[j];
+        // Only add virtual edge if no real sibling edge already exists
+        const aAdj = adj.get(a);
+        if (aAdj && !aAdj.some((e) => e.id === b)) aAdj.push({ id: b, step: "sibling" });
+        const bAdj = adj.get(b);
+        if (bAdj && !bAdj.some((e) => e.id === a)) bAdj.push({ id: a, step: "sibling" });
+      }
+    }
+  }
+
   const visited = new Set<string>([myId]);
   const queue: { id: string; path: string[] }[] = [{ id: myId, path: [] }];
 
