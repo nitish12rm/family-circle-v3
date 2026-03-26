@@ -112,9 +112,13 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
           setStep("root");
         }
       })
-      .catch(() => onSkip())
+      .catch(() => {
+        // On error, default to root placement so the modal stays visible
+        setStep("root");
+      })
       .finally(() => setLoading(false));
-  }, [open, familyId, onSkip]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, familyId]);
 
   const reset = () => {
     setStep("anchor");
