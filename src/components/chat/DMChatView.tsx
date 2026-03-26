@@ -85,9 +85,13 @@ export default function DMChatView({ userId }: { userId: string }) {
         <button onClick={() => router.push("/chat")} className="p-1.5 rounded-lg hover:bg-bg-2 text-text-muted hover:text-text transition-colors">
           <ArrowLeft size={18} />
         </button>
-        <Avatar src={other?.avatar} name={other?.name ?? ""} size={32} />
+        <button onClick={() => router.push(`/profile/${userId}`)} className="shrink-0">
+          <Avatar src={other?.avatar} name={other?.name ?? ""} size={32} />
+        </button>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-text truncate">{other?.name ?? "..."}</p>
+          <button onClick={() => router.push(`/profile/${userId}`)} className="text-sm font-semibold text-text truncate hover:text-accent transition-colors">
+            {other?.name ?? "..."}
+          </button>
           <p className="text-xs text-text-faint">Direct message</p>
         </div>
       </div>
@@ -97,8 +101,12 @@ export default function DMChatView({ userId }: { userId: string }) {
         {loading ? <div className="flex justify-center py-10"><Spinner /></div>
           : messages.length === 0 ? (
             <div className="text-center py-20">
-              <Avatar src={other?.avatar} name={other?.name ?? ""} size={56} className="mx-auto mb-3" />
-              <p className="text-sm font-medium text-text">{other?.name}</p>
+              <button onClick={() => router.push(`/profile/${userId}`)} className="block mx-auto mb-3">
+                <Avatar src={other?.avatar} name={other?.name ?? ""} size={56} />
+              </button>
+              <button onClick={() => router.push(`/profile/${userId}`)} className="text-sm font-medium text-text hover:text-accent transition-colors">
+                {other?.name}
+              </button>
               <p className="text-xs text-text-muted mt-1">Send a message to start the conversation.</p>
             </div>
           ) : messages.map((msg) => {

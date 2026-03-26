@@ -83,9 +83,20 @@ export default function GroupChatView({ familyId }: { familyId: string }) {
             const isMe = msg.sender_id === user?.id;
             return (
               <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
-                {!isMe && <Avatar src={msg.sender?.avatar} name={msg.sender?.name} size={28} className="mt-1 shrink-0" />}
+                {!isMe && (
+                  <button onClick={() => router.push(`/profile/${msg.sender_id}`)} className="mt-1 shrink-0">
+                    <Avatar src={msg.sender?.avatar} name={msg.sender?.name} size={28} />
+                  </button>
+                )}
                 <div className={`max-w-[75%] flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                  {!isMe && <span className="text-xs text-text-muted mb-1 ml-1">{msg.sender?.name}</span>}
+                  {!isMe && (
+                    <button
+                      onClick={() => router.push(`/profile/${msg.sender_id}`)}
+                      className="text-xs text-text-muted mb-1 ml-1 hover:text-accent transition-colors"
+                    >
+                      {msg.sender?.name}
+                    </button>
+                  )}
                   <div className={`px-3.5 py-2.5 rounded-2xl text-sm ${isMe ? "bg-accent text-white rounded-br-sm" : "bg-bg-3 text-text rounded-bl-sm"}`}>
                     {msg.content}
                   </div>
