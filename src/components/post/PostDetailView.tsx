@@ -83,6 +83,14 @@ export default function PostDetailView({ postId }: { postId: string }) {
         <PostCard
           post={post}
           navigable={false}
+          onDelete={async (postId) => {
+            try {
+              await api.delete(`/api/families/${post.family_id}/posts?postId=${postId}`);
+              router.back();
+            } catch {
+              // silent — toast handled by FeedView when coming from there
+            }
+          }}
           onLikeToggle={(_, liked, count) =>
             setPost((p) => p ? { ...p, liked_by_me: liked, like_count: count } : p)
           }
