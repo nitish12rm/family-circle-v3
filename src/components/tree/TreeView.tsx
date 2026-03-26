@@ -171,6 +171,9 @@ export default function TreeView() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Admin role
+  const [isAdmin, setIsAdmin] = useState(false);
+
   // Placement
   const [showPlacement, setShowPlacement] = useState(false);
 
@@ -185,7 +188,14 @@ export default function TreeView() {
   const loadTree = useCallback(async () => {
     if (!activeFamilyId) return;
     try {
-      const data = await api.get<TreeData>(`/api/families/${activeFamilyId}/tree`);
+      const [data, members] = await Promise.all([
+        api.get<TreeData>(`/api/families/${activeFamilyId}/tree`),
+        api.get<{ role: string; user_id: string }[]>(`/api/families/${activeFamilyId}/members`),
+      ]);
+      if (user?.id) {
+        const me = members.find((m) => m.user_id === user.id);
+        setIsAdmin(me?.role === "admin");
+      }
       setTreeData(data);
       const pos = buildLayout(data.members, data.relationships);
       setPositions(pos);
@@ -359,17 +369,19 @@ export default function TreeView() {
         </button>
       </div>
 
-      {/* Action buttons */}
-      <div className="absolute top-3 left-3 z-10 flex gap-2">
-        <Button size="sm" onClick={() => setAddOpen(true)}>
-          <Plus size={14} /> Person
-        </Button>
-        {treeData.members.length >= 2 && (
-          <Button size="sm" variant="secondary" onClick={() => setAddRelOpen(true)}>
-            Link
+      {/* Action buttons — admin only */}
+      {isAdmin && (
+        <div className="absolute top-3 left-3 z-10 flex gap-2">
+          <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Plus size={14} /> Person
           </Button>
-        )}
-      </div>
+          {treeData.members.length >= 2 && (
+            <Button size="sm" variant="secondary" onClick={() => setAddRelOpen(true)}>
+              Link
+            </Button>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <div className="flex items-center justify-center h-full">
@@ -378,9 +390,11 @@ export default function TreeView() {
       ) : treeData.members.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full gap-3">
           <p className="text-text-muted text-sm">Your family tree is empty.</p>
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus size={14} /> Add First Person
-          </Button>
+          {isAdmin && (
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus size={14} /> Add First Person
+            </Button>
+          )}
         </div>
       ) : (
         <svg
@@ -556,6 +570,7 @@ export default function TreeView() {
           member={selectedMember}
           familyId={activeFamilyId}
           treeData={treeData}
+          isAdmin={isAdmin}
           onClose={() => setSelectedMember(null)}
           onDelete={(id) => {
             handleDeleteMember(id);

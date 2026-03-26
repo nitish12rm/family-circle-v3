@@ -3,7 +3,26 @@ import { connectDB } from "@/lib/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { TreeMember } from "@/models/TreeMember";
 import { TreeRelationship } from "@/models/TreeRelationship";
+import { FamilyMember } from "@/models/FamilyMember";
 import { randomUUID } from "crypto";
+
+async function requireAdmin(req: NextRequest, familyId: string) {
+  const { userId } = requireAuth(req);
+  await connectDB();
+  const membership = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+  if (!membership) throw new Error("Forbidden");
+  return { userId };
+}
+
+async function cleanOrphanedPlaceholders(familyId: string) {
+  const connected = await TreeRelationship.find({ family_id: familyId }).lean();
+  const connectedIds = new Set(connected.flatMap((r) => [r.member_id, r.related_member_id]));
+  await TreeMember.deleteMany({
+    family_id: familyId,
+    is_placeholder: true,
+    _id: { $nin: Array.from(connectedIds) },
+  });
+}
 
 export async function GET(
   req: NextRequest,
@@ -83,9 +102,8 @@ export async function PATCH(
   { params }: { params: Promise<{ familyId: string }> }
 ) {
   try {
-    requireAuth(req);
-    await connectDB();
     const { familyId } = await params;
+    await requireAdmin(req, familyId);
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get("memberId");
     if (!memberId)
@@ -112,27 +130,36 @@ export async function PATCH(
       photo: m.photo, status: m.status, notes: m.notes,
       is_placeholder: m.is_placeholder, is_deceased: m.is_deceased,
     });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    const status = (err as Error).message === "Forbidden" ? 403 : 401;
+    return NextResponse.json({ error: (err as Error).message }, { status });
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ familyId: string }> }
+) {
   try {
-    requireAuth(req);
-    await connectDB();
+    const { familyId } = await params;
+    await requireAdmin(req, familyId);
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get("memberId");
     if (!memberId)
       return NextResponse.json({ error: "Missing memberId" }, { status: 400 });
 
-    await TreeMember.findByIdAndDelete(memberId);
+    await TreeMember.findOneAndDelete({ _id: memberId, family_id: familyId });
     await TreeRelationship.deleteMany({
+      family_id: familyId,
       $or: [{ member_id: memberId }, { related_member_id: memberId }],
     });
 
+    // Remove any placeholder nodes that are now disconnected
+    await cleanOrphanedPlaceholders(familyId);
+
     return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  } catch (err) {
+    const status = (err as Error).message === "Forbidden" ? 403 : 401;
+    return NextResponse.json({ error: (err as Error).message }, { status });
   }
 }
