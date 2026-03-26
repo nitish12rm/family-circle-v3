@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   Camera, Grid3X3, FileText, GraduationCap, Target, Calendar,
-  Eye, Download, Lock, Globe, ChevronDown, Search, Settings, X,
+  Eye, Download, Lock, Globe, ChevronDown, Search, Settings, X, Heart, MessageCircle,
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -23,6 +23,8 @@ interface OwnPost {
   content: string;
   media_urls: string[];
   family_id: string;
+  like_count?: number;
+  comment_count?: number;
   created_at: string;
 }
 
@@ -276,14 +278,16 @@ export default function ProfileView() {
             <p className="text-text-muted text-sm">No posts yet.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-px bg-border">
+          <div className="grid grid-cols-3 gap-0.5 bg-border border-t border-border">
             {posts.map((post) => {
               const media = post.media_urls ?? [];
+              const likes = post.like_count ?? 0;
+              const comments = post.comment_count ?? 0;
               return (
                 <button
                   key={post.id}
                   onClick={() => router.push(`/post/${post.id}`)}
-                  className="aspect-square bg-bg-3 overflow-hidden relative group"
+                  className="aspect-square overflow-hidden relative group bg-bg-2"
                 >
                   {media.length > 0 ? (
                     <>
@@ -291,19 +295,49 @@ export default function ProfileView() {
                       <img
                         src={media[0]}
                         alt=""
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
+                      {/* Hover overlay — shows likes + comments like Instagram */}
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-200 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100">
+                        <div className="flex items-center gap-1 text-white">
+                          <Heart size={15} className="fill-white" strokeWidth={0} />
+                          <span className="text-xs font-bold">{likes}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-white">
+                          <MessageCircle size={15} className="fill-white" strokeWidth={0} />
+                          <span className="text-xs font-bold">{comments}</span>
+                        </div>
+                      </div>
+                      {/* Multi-image badge */}
                       {media.length > 1 && (
-                        <div className="absolute top-1.5 right-1.5 w-4 h-4 bg-black/60 rounded flex items-center justify-center">
-                          <Grid3X3 size={8} className="text-white" />
+                        <div className="absolute top-1.5 right-1.5 opacity-90">
+                          <Grid3X3 size={13} className="text-white drop-shadow-sm" />
                         </div>
                       )}
                     </>
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center p-2 bg-bg-2 group-hover:bg-bg-3 transition-colors">
-                      <p className="text-[10px] text-text-muted text-center line-clamp-4 leading-relaxed">
+                    /* Text-only tile */
+                    <div className="w-full h-full bg-gradient-to-br from-accent/20 via-accent/10 to-transparent flex flex-col justify-between p-2.5 group-hover:from-accent/30 group-hover:via-accent/15 transition-all duration-200">
+                      <span className="text-accent/40 text-3xl font-serif leading-none select-none">"</span>
+                      <p className="text-[10px] text-text font-medium line-clamp-4 leading-relaxed -mt-2 text-left">
                         {post.content}
                       </p>
+                      {(likes > 0 || comments > 0) && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          {likes > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <Heart size={8} className="fill-red-400 text-red-400" strokeWidth={0} />
+                              <span className="text-[9px] text-text-faint font-medium">{likes}</span>
+                            </div>
+                          )}
+                          {comments > 0 && (
+                            <div className="flex items-center gap-0.5">
+                              <MessageCircle size={8} className="text-text-faint" strokeWidth={1.5} />
+                              <span className="text-[9px] text-text-faint font-medium">{comments}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </button>
