@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
 import DocPreviewModal from "@/components/documents/DocPreviewModal";
+import { downloadFile } from "@/lib/downloadFile";
 
 interface PublicProfile {
   id: string;
@@ -384,14 +385,12 @@ export default function UserProfileView({ userId }: { userId: string }) {
                               >
                                 <Eye size={14} />
                               </button>
-                              <a
-                                href={doc.file_path}
-                                target="_blank"
-                                rel="noreferrer"
+                              <button
+                                onClick={() => downloadFile(doc.file_path, doc.name)}
                                 className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
                               >
                                 <Download size={14} />
-                              </a>
+                              </button>
                             </div>
                           </div>
                         ))}

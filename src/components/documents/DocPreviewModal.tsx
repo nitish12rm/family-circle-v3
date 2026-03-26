@@ -1,5 +1,6 @@
 "use client";
 import { X, Download, FileText } from "lucide-react";
+import { downloadFile } from "@/lib/downloadFile";
 
 interface DocPreviewModalProps {
   doc: { name: string; file_path: string; mime_type: string } | null;
@@ -24,15 +25,12 @@ export default function DocPreviewModal({ doc, onClose }: DocPreviewModalProps) 
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
           <p className="flex-1 text-sm font-medium text-text truncate">{doc.name}</p>
-          <a
-            href={doc.file_path}
-            download={doc.name}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            onClick={() => downloadFile(doc.file_path, doc.name)}
             className="p-1.5 rounded-lg hover:bg-bg-2 text-text-muted hover:text-text transition-colors"
           >
             <Download size={16} />
-          </a>
+          </button>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-bg-2 text-text-muted hover:text-text transition-colors"

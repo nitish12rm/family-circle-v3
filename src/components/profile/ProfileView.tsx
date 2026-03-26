@@ -15,6 +15,7 @@ import Button from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import DocPreviewModal from "@/components/documents/DocPreviewModal";
 import { compressImage } from "@/lib/imageCompression";
+import { downloadFile } from "@/lib/downloadFile";
 import type { Profile, Document } from "@/types";
 import { DOCUMENT_CATEGORIES } from "@/types";
 
@@ -442,14 +443,12 @@ export default function ProfileView() {
                               >
                                 <Eye size={14} />
                               </button>
-                              <a
-                                href={doc.file_path}
-                                target="_blank"
-                                rel="noreferrer"
+                              <button
+                                onClick={() => downloadFile(doc.file_path, doc.name)}
                                 className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
                               >
                                 <Download size={14} />
-                              </a>
+                              </button>
                             </div>
                           </div>
                         ))}

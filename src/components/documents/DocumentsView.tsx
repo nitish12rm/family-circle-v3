@@ -11,6 +11,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
 import DocPreviewModal from "@/components/documents/DocPreviewModal";
 import { compressImage } from "@/lib/imageCompression";
+import { downloadFile } from "@/lib/downloadFile";
 import { formatDistanceToNow } from "date-fns";
 import type { Document } from "@/types";
 import { DOCUMENT_CATEGORIES } from "@/types";
@@ -280,15 +281,13 @@ export default function DocumentsView() {
                           >
                             <Eye size={14} />
                           </button>
-                          <a
-                            href={doc.file_path}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            onClick={() => downloadFile(doc.file_path, doc.name)}
                             className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
                             title="Download"
                           >
                             <Download size={14} />
-                          </a>
+                          </button>
                           <button
                             onClick={() => handleDelete(doc.id)}
                             className="p-2 rounded-lg hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
