@@ -9,7 +9,7 @@ import {
   TouchEvent,
 } from "react";
 import { Plus, ZoomIn, ZoomOut, Maximize2, Save } from "lucide-react";
-import { getExtendedFamily } from "relatives-tree";
+import getExtendedFamily from "relatives-tree";
 import type { Node as RelNode } from "relatives-tree";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
