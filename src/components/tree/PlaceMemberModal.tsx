@@ -348,30 +348,53 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
           {/* ── Step 1: Pick anchor ───────────────────────────────── */}
           {step === "anchor" && (
             <div className="flex flex-col gap-3">
-              <p className="text-sm text-text-muted">
-                Who in this family are you most directly related to?
-              </p>
-
-              <div className="flex flex-col gap-1 max-h-60 overflow-y-auto -mx-1 px-1">
-                {selectableMembers.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => {
-                      setAnchor(m);
-                      setStep("relation");
-                    }}
-                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-bg-3 transition-colors text-left"
-                  >
-                    <Avatar name={m.name} src={m.photo} size={36} />
-                    <span className="flex-1 text-sm font-medium text-text">{m.name}</span>
-                    <ChevronRight size={14} className="text-text-muted" />
-                  </button>
-                ))}
+              <div>
+                <p className="text-sm font-medium text-text mb-1">
+                  Pick one person you&apos;re related to
+                </p>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Even if you know multiple people here, just pick the{" "}
+                  <span className="text-text font-medium">one you&apos;re closest to</span>.
+                  Once connected, the tree automatically works out your relationship
+                  to everyone else.
+                </p>
               </div>
+
+              <div className="flex flex-col gap-1 max-h-56 overflow-y-auto -mx-1 px-1">
+                {selectableMembers.map((m) => {
+                  const selected = anchor?.id === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => setAnchor(selected ? null : m)}
+                      className={`flex items-center gap-3 p-3 rounded-xl transition-all text-left border ${
+                        selected
+                          ? "bg-accent/10 border-accent/40"
+                          : "border-transparent hover:bg-bg-3"
+                      }`}
+                    >
+                      <Avatar name={m.name} src={m.photo} size={36} />
+                      <span className="flex-1 text-sm font-medium text-text">{m.name}</span>
+                      {selected
+                        ? <Check size={15} className="text-accent shrink-0" />
+                        : <ChevronRight size={14} className="text-text-muted shrink-0" />
+                      }
+                    </button>
+                  );
+                })}
+              </div>
+
+              <Button
+                onClick={() => setStep("relation")}
+                disabled={!anchor}
+                className="w-full"
+              >
+                Next
+              </Button>
 
               <button
                 onClick={handleClose}
-                className="text-xs text-text-muted hover:text-text text-center mt-1 transition-colors"
+                className="text-xs text-text-muted hover:text-text text-center transition-colors"
               >
                 Skip — I&apos;ll place myself later
               </button>
