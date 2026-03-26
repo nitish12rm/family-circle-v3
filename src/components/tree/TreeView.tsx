@@ -234,7 +234,7 @@ function buildLayout(
   const effectiveRoot = rootId ?? members.find((m) => !m.is_placeholder)?.id ?? members[0].id;
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { nodes: extNodes } = getExtendedFamily(toRelNodes(members, relationships) as any, effectiveRoot);
+    const { nodes: extNodes } = getExtendedFamily(toRelNodes(members, relationships) as any, { rootId: effectiveRoot });
     const positionedIds = new Set<string>();
     const result: NodePosition[] = [];
     for (const node of extNodes) {
