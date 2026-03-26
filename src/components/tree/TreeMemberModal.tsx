@@ -16,6 +16,7 @@ interface Props {
   treeData: { members: TreeMember[]; relationships: TreeRelationship[] };
   isAdmin: boolean;
   currentUserId?: string;
+  relLabel?: string;
   onClose: () => void;
   onDelete: (id: string) => void;
   onUpdated: (member: TreeMember) => void;
@@ -51,6 +52,7 @@ export default function TreeMemberModal({
   treeData,
   isAdmin,
   currentUserId,
+  relLabel,
   onClose,
   onDelete,
   onUpdated,
@@ -201,15 +203,22 @@ export default function TreeMemberModal({
                   </span>
                 )}
               </div>
-              {member.gender && (
-                <span
-                  className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-full border capitalize mt-1 ${
-                    GENDER_COLOR[member.gender] ?? GENDER_COLOR.other
-                  }`}
-                >
-                  {member.gender}
-                </span>
-              )}
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {relLabel && (
+                  <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/30">
+                    {relLabel}
+                  </span>
+                )}
+                {member.gender && (
+                  <span
+                    className={`text-[11px] font-medium px-2 py-0.5 rounded-full border capitalize ${
+                      GENDER_COLOR[member.gender] ?? GENDER_COLOR.other
+                    }`}
+                  >
+                    {member.gender}
+                  </span>
+                )}
+              </div>
             </div>
             {/* Action buttons */}
             {(isAdmin || member.profile_id === currentUserId) && (

@@ -768,6 +768,7 @@ export default function TreeView() {
           treeData={treeData}
           isAdmin={isAdmin}
           currentUserId={user?.id}
+          relLabel={selectedMember ? relLabels.get(selectedMember.id) : undefined}
           onClose={() => setSelectedMember(null)}
           onDelete={(id) => {
             handleDeleteMember(id);
