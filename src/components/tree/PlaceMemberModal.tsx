@@ -365,12 +365,31 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
             <div className="flex flex-col gap-3">
               <StepDots current={dotIndex} />
               <div>
-                <p className="text-sm font-medium text-text mb-1">Pick one person you&apos;re related to</p>
+                <p className="text-sm font-medium text-text mb-1">Who do you know here?</p>
                 <p className="text-xs text-text-muted leading-relaxed">
-                  Even if you know multiple people here, pick the{" "}
-                  <span className="font-medium text-text">one you&apos;re closest to</span>.
-                  The tree works out your connection to everyone else automatically.
+                  Tap <span className="font-medium text-text">one person</span> whose relationship to you you&apos;re sure of.
+                  You only need one — your position in the rest of the tree is worked out automatically.
                 </p>
+              </div>
+
+              {/* Priority guide */}
+              <div className="bg-bg-3 border border-border rounded-xl px-3 py-2.5 flex flex-col gap-2">
+                <p className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">Look for in this order</p>
+                {[
+                  { step: "1", label: "Parent", hint: "Dad or Mum" },
+                  { step: "2", label: "Sibling", hint: "Brother or Sister" },
+                  { step: "3", label: "Extended member", hint: "Uncle, Aunt, Cousin — pick any one you know" },
+                ].map((row) => (
+                  <div key={row.step} className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {row.step}
+                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-medium text-text leading-tight">{row.label}</span>
+                      <span className="text-[11px] text-text-muted leading-tight">{row.hint}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
               <div className="flex flex-col gap-1 max-h-52 overflow-y-auto -mx-1 px-1">
                 {selectableMembers.map((m) => {
@@ -412,6 +431,17 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
                 </p>
                 <p className="text-xs text-text-muted">
                   Read the examples under each option before choosing.
+                </p>
+              </div>
+
+              {/* Decision tip */}
+              <div className="bg-accent/8 border border-accent/20 rounded-xl px-3 py-2.5 flex gap-2.5 items-start">
+                <span className="text-base shrink-0 mt-0.5">💡</span>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  <span className="font-semibold text-text">Not sure where to start?</span>{" "}
+                  Try <span className="text-accent font-medium">Immediate</span> first — parent, child, sibling, or spouse.
+                  If none of those fit, move to <span className="text-accent font-medium">Extended</span>.
+                  If more than one option in Extended could work, just pick the closest one.
                 </p>
               </div>
 
@@ -476,6 +506,15 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
                   <span className="font-medium text-text">{anchor.name}</span>
                 </p>
               </div>
+
+              {category === "extended" && (
+                <div className="bg-bg-3 border border-border rounded-xl px-3 py-2 flex gap-2 items-start">
+                  <span className="text-sm shrink-0 mt-0.5">ℹ️</span>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    If more than one option fits, pick any — the tree will still place you correctly relative to {anchor.name}.
+                  </p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 {categoryRelations.map((r) => (

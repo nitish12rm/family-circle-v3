@@ -317,6 +317,15 @@ export async function POST(
 
     if (rels.length > 0) await TreeRelationship.insertMany(rels);
 
+    // Clean up any placeholder nodes that are now fully disconnected
+    const allRels = await TreeRelationship.find({ family_id: familyId }).lean();
+    const connectedIds = new Set(allRels.flatMap((r) => [r.member_id, r.related_member_id]));
+    await TreeMember.deleteMany({
+      family_id: familyId,
+      is_placeholder: true,
+      _id: { $nin: Array.from(connectedIds) },
+    });
+
     return NextResponse.json({ member: newMember, placeholders });
   } catch (err) {
     console.error(err);

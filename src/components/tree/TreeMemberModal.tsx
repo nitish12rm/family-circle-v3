@@ -14,6 +14,8 @@ interface Props {
   member: TreeMember | null;
   familyId: string;
   treeData: { members: TreeMember[]; relationships: TreeRelationship[] };
+  isAdmin: boolean;
+  currentUserId?: string;
   onClose: () => void;
   onDelete: (id: string) => void;
   onUpdated: (member: TreeMember) => void;
@@ -47,6 +49,8 @@ export default function TreeMemberModal({
   member,
   familyId,
   treeData,
+  isAdmin,
+  currentUserId,
   onClose,
   onDelete,
   onUpdated,
@@ -208,22 +212,26 @@ export default function TreeMemberModal({
               )}
             </div>
             {/* Action buttons */}
-            <div className="flex gap-1 shrink-0">
-              <button
-                onClick={openEdit}
-                className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
-                title="Edit"
-              >
-                <Pencil size={15} />
-              </button>
-              <button
-                onClick={() => { onDelete(member.id); onClose(); }}
-                className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
-                title="Delete"
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
+            {(isAdmin || member.profile_id === currentUserId) && (
+              <div className="flex gap-1 shrink-0">
+                {isAdmin && (
+                  <button
+                    onClick={openEdit}
+                    className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-text transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil size={15} />
+                  </button>
+                )}
+                <button
+                  onClick={() => { onDelete(member.id); onClose(); }}
+                  className="p-2 rounded-xl hover:bg-bg-3 text-text-muted hover:text-error transition-colors"
+                  title={member.profile_id === currentUserId ? "Remove yourself from tree" : "Delete"}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Info rows */}
