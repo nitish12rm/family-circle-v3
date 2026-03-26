@@ -1,13 +1,13 @@
 "use client";
-import { useState } from "react";
-import { Heart, MessageCircle, X } from "lucide-react";
+import { useState, useRef } from "react";
+import { Heart, MessageCircle, X, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
 import { formatDistanceToNow } from "date-fns";
-import type { Post } from "@/types";
+import type { Post, PostComment } from "@/types";
 
 const CONTENT_LIMIT = 180;
 
@@ -33,6 +33,15 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
   const [likersOpen, setLikersOpen] = useState(false);
   const [allLikers, setAllLikers] = useState<LikerProfile[]>([]);
   const [loadingLikers, setLoadingLikers] = useState(false);
+
+  // Comments sheet
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [comments, setComments] = useState<PostComment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [sendingComment, setSendingComment] = useState(false);
+  const [commentCount, setCommentCount] = useState(post.comment_count ?? 0);
+  const commentsEndRef = useRef<HTMLDivElement>(null);
 
   const isLong = post.content.length > CONTENT_LIMIT;
   const displayContent = isLong && !expanded
@@ -72,6 +81,35 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
       } finally {
         setLoadingLikers(false);
       }
+    }
+  };
+
+  const openComments = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCommentsOpen(true);
+    if (comments.length === 0) {
+      setLoadingComments(true);
+      try {
+        const data = await api.get<PostComment[]>(`/api/posts/${post.id}/comments`);
+        setComments(data);
+      } finally {
+        setLoadingComments(false);
+      }
+    }
+  };
+
+  const submitComment = async () => {
+    const text = commentText.trim();
+    if (!text || sendingComment) return;
+    setSendingComment(true);
+    try {
+      const newComment = await api.post<PostComment>(`/api/posts/${post.id}/comments`, { content: text });
+      setComments((prev) => [...prev, newComment]);
+      setCommentCount((c) => c + 1);
+      setCommentText("");
+      setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    } finally {
+      setSendingComment(false);
     }
   };
 
@@ -181,16 +219,92 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
             </span>
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); if (navigable) router.push(`/post/${post.id}#comments`); else document.getElementById("comment-input")?.focus(); }}
+            onClick={openComments}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-bg-3 text-text-faint hover:text-text transition-colors flex-1 justify-center"
           >
             <MessageCircle size={17} strokeWidth={2} />
             <span className="text-xs font-medium">
-              Comment{(post.comment_count ?? 0) > 0 ? ` · ${post.comment_count}` : ""}
+              Comment{commentCount > 0 ? ` · ${commentCount}` : ""}
             </span>
           </button>
         </div>
       </div>
+
+      {/* Comments sheet */}
+      {commentsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+          onClick={() => setCommentsOpen(false)}
+        >
+          <div
+            className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden flex flex-col max-h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0">
+              <div className="w-10 h-1 bg-border rounded-full" />
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
+              <h2 className="text-sm font-semibold text-text">{commentCount} Comment{commentCount !== 1 ? "s" : ""}</h2>
+              <button onClick={() => setCommentsOpen(false)} className="p-1 text-text-faint hover:text-text">
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Comments list */}
+            <div className="overflow-y-auto flex-1 py-2">
+              {loadingComments ? (
+                <div className="flex justify-center py-8"><Spinner /></div>
+              ) : comments.length === 0 ? (
+                <p className="text-center text-text-muted text-sm py-8">No comments yet. Be the first!</p>
+              ) : (
+                comments.map((c) => (
+                  <div key={c.id} className="flex items-start gap-3 px-5 py-3">
+                    <button onClick={() => { setCommentsOpen(false); router.push(`/profile/${c.author_id}`); }}>
+                      <Avatar src={c.author?.avatar} name={c.author?.name} size={36} />
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-baseline gap-2">
+                        <button
+                          onClick={() => { setCommentsOpen(false); router.push(`/profile/${c.author_id}`); }}
+                          className="text-xs font-semibold text-text hover:text-accent transition-colors"
+                        >
+                          {c.author?.name ?? "Unknown"}
+                        </button>
+                        <span className="text-[10px] text-text-faint">
+                          {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                      <p className="text-sm text-text mt-0.5 whitespace-pre-wrap leading-relaxed">{c.content}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+              <div ref={commentsEndRef} />
+            </div>
+
+            {/* Pinned input */}
+            <div className="shrink-0 border-t border-border px-4 py-3 flex items-center gap-3 pb-safe">
+              <Avatar src={user?.avatar} name={user?.name} size={32} />
+              <input
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(); } }}
+                placeholder="Add a comment…"
+                className="flex-1 bg-bg-2 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-faint outline-none border border-border focus:border-accent transition-colors"
+              />
+              <button
+                onClick={submitComment}
+                disabled={!commentText.trim() || sendingComment}
+                className="p-2 rounded-xl bg-accent text-white disabled:opacity-40 transition-opacity"
+              >
+                {sendingComment ? <Spinner size={16} /> : <Send size={16} />}
+              </button>
+            </div>
+            <div className="pb-6 shrink-0" />
+          </div>
+        </div>
+      )}
 
       {/* Likers modal */}
       {likersOpen && (
