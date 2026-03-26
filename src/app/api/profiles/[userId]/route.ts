@@ -41,15 +41,11 @@ export async function GET(
       .limit(30)
       .lean() as Record<string, unknown>[];
 
-    // Documents linked to tree members that have this profile_id
-    const treeNodes = await TreeMember.find({
-      profile_id: userId,
-      family_id: { $in: sharedFamilyIds },
-    }).lean() as { _id: string }[];
-    const treeMemberIds = treeNodes.map((m) => m._id);
-
+    // Public documents uploaded by this user in shared families
     const documents = await Document.find({
-      member_id: { $in: treeMemberIds },
+      uploaded_by: userId,
+      family_id: { $in: sharedFamilyIds },
+      visibility: "public",
     })
       .sort({ created_at: -1 })
       .lean() as Record<string, unknown>[];

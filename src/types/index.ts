@@ -92,6 +92,24 @@ export interface TreeRelationship {
   type: "parent" | "child" | "spouse" | "sibling";
 }
 
+export const DOCUMENT_CATEGORIES = [
+  "Aadhaar Card",
+  "PAN Card",
+  "Passport",
+  "Driving License",
+  "Voter ID",
+  "Birth Certificate",
+  "Marriage Certificate",
+  "Property Documents",
+  "Bank Documents",
+  "Insurance",
+  "Educational Certificate",
+  "Medical Records",
+  "Other",
+] as const;
+
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+
 export interface Document {
   id: string;
   family_id: string;
@@ -102,6 +120,8 @@ export interface Document {
   file_size: number;
   mime_type: string;
   description?: string;
+  category: string;
+  visibility: "public" | "private";
   created_at: string;
 }
 

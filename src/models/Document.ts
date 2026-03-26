@@ -11,6 +11,8 @@ const documentSchema = new Schema(
     file_size: { type: Number, required: true },
     mime_type: { type: String, required: true },
     description: String,
+    category: { type: String, default: "Other" },
+    visibility: { type: String, enum: ["public", "private"], default: "private" },
   },
   { timestamps: { createdAt: "created_at", updatedAt: false } }
 );

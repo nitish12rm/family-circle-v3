@@ -27,6 +27,8 @@ export async function GET(
         file_size: d.file_size,
         mime_type: d.mime_type,
         description: d.description,
+        category: d.category ?? "Other",
+        visibility: d.visibility ?? "private",
         created_at: d.created_at,
       }))
     );
@@ -43,7 +45,7 @@ export async function POST(
     const { userId } = requireAuth(req);
     await connectDB();
     const { familyId } = await params;
-    const { name, file_path, file_size, mime_type, description, member_id } =
+    const { name, file_path, file_size, mime_type, description, member_id, category, visibility } =
       await req.json();
 
     if (!name || !file_path) {
@@ -63,6 +65,8 @@ export async function POST(
       file_size: file_size ?? 0,
       mime_type: mime_type ?? "application/octet-stream",
       description,
+      category: category ?? "Other",
+      visibility: visibility ?? "private",
     });
 
     return NextResponse.json({
@@ -73,6 +77,8 @@ export async function POST(
       file_size: doc.file_size,
       mime_type: doc.mime_type,
       description: doc.description,
+      category: doc.category,
+      visibility: doc.visibility,
       created_at: doc.created_at,
     });
   } catch {
