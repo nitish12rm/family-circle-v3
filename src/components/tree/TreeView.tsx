@@ -165,7 +165,7 @@ export default function TreeView() {
     } finally {
       setLoading(false);
     }
-  }, [activeFamilyId, showToast]);
+  }, [activeFamilyId, showToast, user]);
 
   useEffect(() => {
     setLoading(true);
