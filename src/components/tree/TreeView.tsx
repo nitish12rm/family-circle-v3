@@ -301,14 +301,6 @@ export default function TreeView() {
       const pos = buildLayout(data.members, data.relationships);
       setPositions(pos);
 
-      // Compute relation labels from current user's perspective
-      if (user?.id) {
-        const myNode = data.members.find((m) => m.profile_id === user.id && !m.is_placeholder);
-        if (myNode) {
-          setRelLabels(computeRelLabels(myNode.id, data.members, data.relationships));
-        }
-      }
-
       // Prompt user to place themselves if not in tree
       if (user?.id) {
         const alreadyIn = data.members.some(
@@ -336,6 +328,17 @@ export default function TreeView() {
     setLoading(true);
     loadTree();
   }, [loadTree]);
+
+  // Recompute relation labels whenever tree data or current user changes
+  useEffect(() => {
+    if (!user?.id || treeData.members.length === 0) return;
+    const myNode = treeData.members.find((m) => m.profile_id === user.id && !m.is_placeholder);
+    if (myNode) {
+      setRelLabels(computeRelLabels(myNode.id, treeData.members, treeData.relationships));
+    } else {
+      setRelLabels(new Map());
+    }
+  }, [treeData, user?.id]);
 
   // Pan handlers
   const onMouseDown = (e: MouseEvent) => {
