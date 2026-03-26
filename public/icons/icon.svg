@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Dark background with rounded corners (maskable safe zone) -->
+  <rect width="512" height="512" rx="112" fill="#0C0C0D"/>
+  <!-- Accent background circle behind logo -->
+  <rect x="156" y="156" width="200" height="200" rx="44" fill="#7C5CFC" fill-opacity="0.15"/>
+  <!-- Logo: parent node (top center) -->
+  <circle cx="256" cy="218" r="40" fill="#7C5CFC"/>
+  <!-- Logo: left child node -->
+  <circle cx="190" cy="314" r="32" fill="#7C5CFC" opacity="0.7"/>
+  <!-- Logo: right child node -->
+  <circle cx="322" cy="314" r="32" fill="#7C5CFC" opacity="0.7"/>
+  <!-- Connecting lines -->
+  <line x1="256" y1="258" x2="190" y2="282" stroke="#7C5CFC" stroke-width="12" opacity="0.5" stroke-linecap="round"/>
+  <line x1="256" y1="258" x2="322" y2="282" stroke="#7C5CFC" stroke-width="12" opacity="0.5" stroke-linecap="round"/>
+</svg>

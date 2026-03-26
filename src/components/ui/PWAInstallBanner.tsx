@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { X, Download } from "lucide-react";
+import AppLogo from "@/components/ui/AppLogo";
 
 type Platform = "ios" | "android";
 
@@ -74,9 +75,7 @@ export default function PWAInstallBanner() {
 
         {/* Header */}
         <div className="flex items-center gap-3 px-5 pt-2 pb-3">
-          <div className="w-12 h-12 rounded-2xl bg-accent flex items-center justify-center shrink-0 shadow-md">
-            <span className="text-white text-base font-black tracking-tight">FC</span>
-          </div>
+          <AppLogo size={28} containerSize={48} />
           <div className="flex-1">
             <p className="text-sm font-bold text-text">Install Family Circle</p>
             <p className="text-xs text-text-faint mt-0.5">Add to your home screen for the best experience</p>
