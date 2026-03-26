@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, LogOut, User, Settings } from "lucide-react";
+import { ChevronDown, LogOut, User, Settings, Check } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import Avatar from "@/components/ui/Avatar";
@@ -23,7 +23,7 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 h-14 bg-bg-1/80 backdrop-blur-xl border-b border-border flex items-center px-4 gap-3">
-      {/* Family selector */}
+      {/* Family selector — always a dropdown */}
       <div className="flex-1">
         {families.length > 0 ? (
           <div className="relative">
@@ -34,34 +34,50 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
               <span className="truncate max-w-[160px]">
                 {activeFamily?.name ?? "Select Family"}
               </span>
-              {families.length > 1 && (
-                <ChevronDown size={14} className="text-text-muted" />
-              )}
+              <ChevronDown
+                size={14}
+                className={`text-text-muted transition-transform ${familyMenuOpen ? "rotate-180" : ""}`}
+              />
             </button>
 
-            {familyMenuOpen && families.length > 1 && (
+            {familyMenuOpen && (
               <>
                 <div
-                  className="fixed inset-0"
+                  className="fixed inset-0 z-40"
                   onClick={() => setFamilyMenuOpen(false)}
                 />
-                <div className="absolute top-full left-0 mt-2 bg-bg-2 border border-border rounded-xl shadow-card py-1 min-w-[180px] z-50">
-                  {families.map((f) => (
+                <div className="absolute top-full left-0 mt-2 bg-bg-2 border border-border rounded-xl shadow-card py-1 min-w-[200px] z-50">
+                  {families.map((f) => {
+                    const isActive = f.id === activeFamilyId;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => {
+                          setActiveFamily(f.id);
+                          setFamilyMenuOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-colors ${
+                          isActive
+                            ? "text-accent font-medium"
+                            : "text-text hover:bg-bg-3"
+                        }`}
+                      >
+                        <span className="truncate">{f.name}</span>
+                        {isActive && <Check size={14} className="shrink-0" />}
+                      </button>
+                    );
+                  })}
+                  <div className="border-t border-border mt-1 pt-1">
                     <button
-                      key={f.id}
                       onClick={() => {
-                        setActiveFamily(f.id);
+                        router.push("/family");
                         setFamilyMenuOpen(false);
                       }}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                        f.id === activeFamilyId
-                          ? "text-accent font-medium"
-                          : "text-text hover:bg-bg-3"
-                      }`}
+                      className="w-full text-left px-4 py-2 text-xs text-text-muted hover:bg-bg-3 transition-colors"
                     >
-                      {f.name}
+                      Manage families…
                     </button>
-                  ))}
+                  </div>
                 </div>
               </>
             )}
@@ -86,7 +102,7 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
         {menuOpen && (
           <>
             <div
-              className="fixed inset-0"
+              className="fixed inset-0 z-40"
               onClick={() => setMenuOpen(false)}
             />
             <div className="absolute right-0 top-full mt-2 bg-bg-2 border border-border rounded-xl shadow-card py-1 min-w-[160px] z-50">
