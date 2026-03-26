@@ -159,7 +159,7 @@ export default function PostCard({ post, onDelete, navigable = true, onLikeToggl
               onClick={(e) => { e.stopPropagation(); setDeletePostOpen(true); }}
               className="p-1 text-text-faint hover:text-error transition-colors"
             >
-              <X size={14} />
+              <Trash2 size={15} />
             </button>
           )}
         </div>
