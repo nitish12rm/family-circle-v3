@@ -373,17 +373,21 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
               </div>
 
               {/* Priority guide */}
-              <div className="bg-bg-3 border border-border rounded-xl px-3 py-2.5 flex flex-col gap-1.5">
-                <p className="text-[10px] font-semibold text-text-faint uppercase tracking-wide mb-0.5">Look for in this order</p>
+              <div className="bg-bg-3 border border-border rounded-xl px-3 py-2.5 flex flex-col gap-2">
+                <p className="text-[10px] font-semibold text-text-faint uppercase tracking-wide">Look for in this order</p>
                 {[
-                  { emoji: "1️⃣", label: "Parent", hint: "Dad or Mum" },
-                  { emoji: "2️⃣", label: "Sibling", hint: "Brother or Sister" },
-                  { emoji: "3️⃣", label: "Extended member", hint: "Uncle, Aunt, Cousin — pick any one you know" },
+                  { step: "1", label: "Parent", hint: "Dad or Mum" },
+                  { step: "2", label: "Sibling", hint: "Brother or Sister" },
+                  { step: "3", label: "Extended member", hint: "Uncle, Aunt, Cousin — pick any one you know" },
                 ].map((row) => (
-                  <div key={row.label} className="flex items-center gap-2">
-                    <span className="text-sm shrink-0">{row.emoji}</span>
-                    <span className="text-xs font-medium text-text">{row.label}</span>
-                    <span className="text-xs text-text-muted">— {row.hint}</span>
+                  <div key={row.step} className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full bg-accent/20 text-accent text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">
+                      {row.step}
+                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-xs font-medium text-text leading-tight">{row.label}</span>
+                      <span className="text-[11px] text-text-muted leading-tight">{row.hint}</span>
+                    </div>
                   </div>
                 ))}
               </div>
