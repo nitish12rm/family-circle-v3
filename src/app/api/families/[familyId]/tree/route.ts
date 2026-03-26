@@ -141,14 +141,24 @@ export async function DELETE(
   { params }: { params: Promise<{ familyId: string }> }
 ) {
   try {
+    const { userId } = requireAuth(req);
+    await connectDB();
     const { familyId } = await params;
-    await requireAdmin(req, familyId);
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get("memberId");
     if (!memberId)
       return NextResponse.json({ error: "Missing memberId" }, { status: 400 });
 
-    await TreeMember.findOneAndDelete({ _id: memberId, family_id: familyId });
+    const target = await TreeMember.findOne({ _id: memberId, family_id: familyId }).lean();
+    if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    const isSelf = (target as { profile_id?: string }).profile_id === userId;
+    if (!isSelf) {
+      const adminMembership = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+      if (!adminMembership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    await TreeMember.findByIdAndDelete(memberId);
     await TreeRelationship.deleteMany({
       family_id: familyId,
       $or: [{ member_id: memberId }, { related_member_id: memberId }],

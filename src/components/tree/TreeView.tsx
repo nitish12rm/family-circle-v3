@@ -571,6 +571,7 @@ export default function TreeView() {
           familyId={activeFamilyId}
           treeData={treeData}
           isAdmin={isAdmin}
+          currentUserId={user?.id}
           onClose={() => setSelectedMember(null)}
           onDelete={(id) => {
             handleDeleteMember(id);
