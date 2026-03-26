@@ -65,7 +65,7 @@ export async function GET(
       posts: posts.map((p) => ({
         id: p._id,
         content: p.content,
-        media_urls: p.media_urls,
+        media_urls: Array.isArray(p.media_urls) ? p.media_urls : [],
         family_id: p.family_id,
         created_at: p.created_at,
       })),

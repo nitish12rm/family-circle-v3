@@ -280,7 +280,7 @@ export default function ProfileView() {
           <div className="grid grid-cols-3 gap-px bg-border">
             {posts.map((post) => (
               <div key={post.id} className="aspect-square bg-bg-3 overflow-hidden relative">
-                {post.media_urls.length > 0 ? (
+                {(post.media_urls ?? []).length > 0 ? (
                   <img src={post.media_urls[0]} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center p-2">
@@ -289,7 +289,7 @@ export default function ProfileView() {
                     </p>
                   </div>
                 )}
-                {post.media_urls.length > 1 && (
+                {(post.media_urls ?? []).length > 1 && (
                   <div className="absolute top-1.5 right-1.5 w-4 h-4 bg-black/60 rounded flex items-center justify-center">
                     <Grid3X3 size={9} className="text-white" />
                   </div>
