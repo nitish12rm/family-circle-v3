@@ -10,6 +10,7 @@ import { useAuthStore } from "@/store/authStore";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
+import AppLogo from "@/components/ui/AppLogo";
 import { useUIStore } from "@/store/uiStore";
 import type { Profile } from "@/types";
 
@@ -56,9 +57,7 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
       >
         {/* Logo */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="w-7 h-7 rounded-xl bg-accent flex items-center justify-center shrink-0">
-            <span className="text-white text-[11px] font-black tracking-tight">FC</span>
-          </div>
+          <AppLogo size={18} containerSize={28} />
           <span className="text-sm font-bold text-gradient hidden sm:block">Family Circle</span>
         </div>
 
