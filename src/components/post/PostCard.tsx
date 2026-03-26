@@ -147,19 +147,23 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
     if (!files.length) return;
     const remaining = 4 - editMediaUrls.length;
     const toProcess = files.slice(0, remaining);
+    // Reset immediately so same files can be reselected
+    if (editFileRef.current) editFileRef.current.value = "";
     setEditUploading(true);
     try {
-      for (const file of toProcess) {
-        const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
-        const formData = new FormData();
-        formData.append("file", toUpload);
-        formData.append("folder", "family-circle-v3/posts");
-        const res = await api.upload<{ url: string }>("/api/upload", formData);
-        setEditMediaUrls((prev) => [...prev, res.url]);
-      }
+      const urls = await Promise.all(
+        toProcess.map(async (file) => {
+          const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
+          const formData = new FormData();
+          formData.append("file", toUpload);
+          formData.append("folder", "family-circle-v3/posts");
+          const res = await api.upload<{ url: string }>("/api/upload", formData);
+          return res.url;
+        })
+      );
+      setEditMediaUrls((prev) => [...prev, ...urls]);
     } finally {
       setEditUploading(false);
-      if (editFileRef.current) editFileRef.current.value = "";
     }
   };
 

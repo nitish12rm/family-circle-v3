@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Plus, RefreshCw, ImagePlus, X } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
@@ -25,6 +25,7 @@ export default function FeedView() {
   const [uploading, setUploading] = useState(false);
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [posting, setPosting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const loadPosts = useCallback(async () => {
     if (!activeFamilyId) return;
@@ -56,21 +57,26 @@ export default function FeedView() {
     if (!files.length) return;
     const remaining = 4 - mediaUrls.length;
     const toProcess = files.slice(0, remaining);
+    // Reset input immediately so the same files can be reselected
+    if (fileInputRef.current) fileInputRef.current.value = "";
     setUploading(true);
     try {
-      for (const file of toProcess) {
-        const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
-        const formData = new FormData();
-        formData.append("file", toUpload);
-        formData.append("folder", "family-circle-v3/posts");
-        const res = await api.upload<{ url: string }>("/api/upload", formData);
-        setMediaUrls((prev) => [...prev, res.url]);
-      }
+      // Upload all selected files in parallel
+      const urls = await Promise.all(
+        toProcess.map(async (file) => {
+          const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
+          const formData = new FormData();
+          formData.append("file", toUpload);
+          formData.append("folder", "family-circle-v3/posts");
+          const res = await api.upload<{ url: string }>("/api/upload", formData);
+          return res.url;
+        })
+      );
+      setMediaUrls((prev) => [...prev, ...urls]);
     } catch {
       showToast("Failed to upload image", "error");
     } finally {
       setUploading(false);
-      e.target.value = "";
     }
   };
 
@@ -175,7 +181,7 @@ export default function FeedView() {
       {/* Create post modal */}
       <Modal
         open={createOpen}
-        onClose={() => { setCreateOpen(false); setContent(""); setMediaUrls([]); }}
+        onClose={() => { setCreateOpen(false); setContent(""); setMediaUrls([]); if (fileInputRef.current) fileInputRef.current.value = ""; }}
         title="New Post"
       >
         <div className="flex flex-col gap-4">
@@ -213,6 +219,7 @@ export default function FeedView() {
                 {uploading ? <Spinner size={16} /> : <ImagePlus size={16} />}
                 <span>{uploading ? "Uploading…" : `Add photo (${mediaUrls.length}/4)`}</span>
                 <input
+                  ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   multiple
