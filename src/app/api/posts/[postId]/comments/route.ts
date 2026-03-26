@@ -22,7 +22,7 @@ export async function GET(
     const authorIds = [...new Set(comments.map((c) => c.author_id))];
     const authors = await Profile.find({ _id: { $in: authorIds } })
       .select("_id name avatar")
-      .lean() as { _id: string; name: string; avatar?: string }[];
+      .lean() as unknown as { _id: string; name: string; avatar?: string }[];
     const authorMap = Object.fromEntries(authors.map((a) => [a._id, a]));
 
     return NextResponse.json(
@@ -57,7 +57,7 @@ export async function POST(
       return NextResponse.json({ error: "Content required" }, { status: 400 });
     }
 
-    const post = await Post.findById(postId).lean() as { family_id: string } | null;
+    const post = await Post.findById(postId).lean() as unknown as { family_id: string } | null;
     if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const comment = await Comment.create({
@@ -68,7 +68,7 @@ export async function POST(
       content: content.trim(),
     });
 
-    const author = await Profile.findById(userId).select("_id name avatar").lean() as { _id: string; name: string; avatar?: string } | null;
+    const author = await Profile.findById(userId).select("_id name avatar").lean() as unknown as { _id: string; name: string; avatar?: string } | null;
 
     return NextResponse.json({
       id: comment._id,

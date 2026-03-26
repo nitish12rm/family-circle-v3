@@ -15,12 +15,12 @@ export async function GET(
 
     const likes = await Like.find({ post_id: postId })
       .sort({ created_at: -1 })
-      .lean() as { user_id: string }[];
+      .lean() as unknown as { user_id: string }[];
 
     const userIds = likes.map((l) => l.user_id);
     const profiles = await Profile.find({ _id: { $in: userIds } })
       .select("_id name avatar")
-      .lean() as { _id: string; name: string; avatar?: string }[];
+      .lean() as unknown as { _id: string; name: string; avatar?: string }[];
 
     const profileMap = Object.fromEntries(profiles.map((p) => [p._id, p]));
 

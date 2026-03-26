@@ -32,7 +32,7 @@ export async function GET(
     const senderIds = [...new Set(messages.map((m) => m.sender_id))];
     const senders = await Profile.find({ _id: { $in: senderIds } })
       .select("_id name avatar")
-      .lean() as { _id: string; name: string; avatar?: string }[];
+      .lean() as unknown as { _id: string; name: string; avatar?: string }[];
     const senderMap = Object.fromEntries(senders.map((s) => [s._id, s]));
 
     return NextResponse.json(
@@ -74,7 +74,7 @@ export async function POST(
       content: content.trim(),
     });
 
-    const sender = await Profile.findById(me).select("_id name avatar").lean() as { _id: string; name: string; avatar?: string } | null;
+    const sender = await Profile.findById(me).select("_id name avatar").lean() as unknown as { _id: string; name: string; avatar?: string } | null;
 
     return NextResponse.json({
       id: dm._id,

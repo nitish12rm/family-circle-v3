@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const otherIds = [...seen.keys()];
     const profiles = await Profile.find({ _id: { $in: otherIds } })
       .select("_id name avatar")
-      .lean() as { _id: string; name: string; avatar?: string }[];
+      .lean() as unknown as { _id: string; name: string; avatar?: string }[];
     const profileMap = Object.fromEntries(profiles.map((p) => [p._id, p]));
 
     const conversations = otherIds.map((otherId) => {

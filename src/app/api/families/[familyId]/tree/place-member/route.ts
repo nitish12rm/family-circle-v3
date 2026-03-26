@@ -39,7 +39,7 @@ export async function POST(
     const existing = await TreeMember.findOne({ family_id: familyId, profile_id: userId }).lean();
     if (existing) return NextResponse.json({ member: existing, placeholders: [] });
 
-    const profile = await Profile.findById(userId).select("name gender avatar").lean() as { name: string; gender?: string; avatar?: string } | null;
+    const profile = await Profile.findById(userId).select("name gender avatar").lean() as unknown as { name: string; gender?: string; avatar?: string } | null;
     if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
     // Root node — first member in the tree
@@ -57,7 +57,7 @@ export async function POST(
       return NextResponse.json({ member: newMember, placeholders: [] });
     }
 
-    const anchor = await TreeMember.findOne({ _id: anchor_member_id, family_id: familyId }).lean() as { _id: string } | null;
+    const anchor = await TreeMember.findOne({ _id: anchor_member_id, family_id: familyId }).lean() as unknown as { _id: string } | null;
     if (!anchor) return NextResponse.json({ error: "Anchor not found" }, { status: 404 });
 
     const newMemberId = randomUUID();
@@ -92,7 +92,7 @@ export async function POST(
 
       const spouseRel = await TreeRelationship.findOne({
         family_id: familyId, member_id: anchorId, type: "spouse",
-      }).lean() as { related_member_id: string } | null;
+      }).lean() as unknown as { related_member_id: string } | null;
 
       if (spouseRel) {
         addRel(spouseRel.related_member_id, newMemberId, "parent");
@@ -108,7 +108,7 @@ export async function POST(
 
       const parentRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "child",
-      }).lean() as { related_member_id: string }[];
+      }).lean() as unknown as { related_member_id: string }[];
 
       if (parentRels.length === 0) {
         const phId = addPlaceholder("Unknown Parent");
@@ -126,7 +126,7 @@ export async function POST(
 
       const parentRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "child",
-      }).lean() as { related_member_id: string }[];
+      }).lean() as unknown as { related_member_id: string }[];
 
       if (parentRels.length > 0) {
         // Inherit anchor's parents
@@ -146,7 +146,7 @@ export async function POST(
 
       const childRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "parent",
-      }).lean() as { related_member_id: string }[];
+      }).lean() as unknown as { related_member_id: string }[];
 
       for (const cr of childRels) {
         addRel(newMemberId, cr.related_member_id, "parent");

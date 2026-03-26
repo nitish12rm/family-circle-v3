@@ -47,11 +47,11 @@ export async function DELETE(req: NextRequest) {
 
     // Collect Cloudinary assets before deleting records
     const [posts, documents] = await Promise.all([
-      Post.find({ author_id: userId }).select("media_urls").lean() as Promise<{ _id: string; media_urls?: string[] }[]>,
-      Document.find({ uploaded_by: userId }).select("file_path").lean() as Promise<{ file_path: string }[]>,
+      Post.find({ author_id: userId }).select("media_urls").lean() as unknown as Promise<{ _id: string; media_urls?: string[] }[]>,
+      Document.find({ uploaded_by: userId }).select("file_path").lean() as unknown as Promise<{ file_path: string }[]>,
     ]);
 
-    const profile = await Profile.findById(userId).select("avatar").lean() as { avatar?: string } | null;
+    const profile = await Profile.findById(userId).select("avatar").lean() as unknown as { avatar?: string } | null;
     const cloudinaryUrls = [
       ...(profile?.avatar ? [profile.avatar] : []),
       ...posts.flatMap((p) => p.media_urls ?? []),

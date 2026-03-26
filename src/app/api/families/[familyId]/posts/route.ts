@@ -31,9 +31,9 @@ export async function GET(
     const [authorProfiles, allLikes, allComments] = await Promise.all([
       Profile.find({ _id: { $in: [...new Set(posts.map((p) => p.author_id))] } })
         .select("_id name avatar email")
-        .lean() as Promise<{ _id: string; name: string; avatar?: string }[]>,
-      Like.find({ post_id: { $in: postIds } }).lean() as Promise<{ post_id: string; user_id: string }[]>,
-      Comment.find({ post_id: { $in: postIds } }).lean() as Promise<{ post_id: string }[]>,
+        .lean() as unknown as Promise<{ _id: string; name: string; avatar?: string }[]>,
+      Like.find({ post_id: { $in: postIds } }).lean() as unknown as Promise<{ post_id: string; user_id: string }[]>,
+      Comment.find({ post_id: { $in: postIds } }).lean() as unknown as Promise<{ post_id: string }[]>,
     ]);
 
     const authorMap = Object.fromEntries(authorProfiles.map((a) => [a._id, a]));
@@ -56,7 +56,7 @@ export async function GET(
     // Fetch profiles for preview likers
     const previewLikerIds = [...new Set(Object.values(likerIdsPerPost).flat())];
     const likerProfiles = previewLikerIds.length
-      ? await Profile.find({ _id: { $in: previewLikerIds } }).select("_id name avatar").lean() as { _id: string; name: string; avatar?: string }[]
+      ? await Profile.find({ _id: { $in: previewLikerIds } }).select("_id name avatar").lean() as unknown as { _id: string; name: string; avatar?: string }[]
       : [];
     const likerProfileMap = Object.fromEntries(likerProfiles.map((p) => [p._id, p]));
 

@@ -19,7 +19,7 @@ export async function GET(
     if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const [author, likeCount, myLike, commentCount] = await Promise.all([
-      Profile.findById(post.author_id).select("_id name avatar").lean() as Promise<Record<string, unknown> | null>,
+      Profile.findById(post.author_id).select("_id name avatar").lean() as unknown as Promise<Record<string, unknown> | null>,
       Like.countDocuments({ post_id: postId }),
       Like.findOne({ post_id: postId, user_id: userId }).lean(),
       Comment.countDocuments({ post_id: postId }),

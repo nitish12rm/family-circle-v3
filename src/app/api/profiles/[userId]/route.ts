@@ -23,11 +23,11 @@ export async function GET(
     if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     // Families the viewer belongs to
-    const viewerMemberships = await FamilyMember.find({ user_id: viewerId }).lean() as { family_id: string }[];
+    const viewerMemberships = await FamilyMember.find({ user_id: viewerId }).lean() as unknown as { family_id: string }[];
     const viewerFamilyIds = viewerMemberships.map((m) => m.family_id);
 
     // Families the target user belongs to
-    const userMemberships = await FamilyMember.find({ user_id: userId }).lean() as { family_id: string }[];
+    const userMemberships = await FamilyMember.find({ user_id: userId }).lean() as unknown as { family_id: string }[];
     const userFamilyIds = userMemberships.map((m) => m.family_id);
 
     // Only show content from shared families
@@ -44,8 +44,8 @@ export async function GET(
 
     const postIds = posts.map((p) => p._id);
     const [allLikes, allComments] = await Promise.all([
-      Like.find({ post_id: { $in: postIds } }).lean() as Promise<{ post_id: string; user_id: string }[]>,
-      Comment.find({ post_id: { $in: postIds } }).lean() as Promise<{ post_id: string }[]>,
+      Like.find({ post_id: { $in: postIds } }).lean() as unknown as Promise<{ post_id: string; user_id: string }[]>,
+      Comment.find({ post_id: { $in: postIds } }).lean() as unknown as Promise<{ post_id: string }[]>,
     ]);
 
     const likeCountMap: Record<string, number> = {};

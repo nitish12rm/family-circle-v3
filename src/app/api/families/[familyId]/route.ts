@@ -27,8 +27,8 @@ export async function DELETE(
 
     // Collect all Cloudinary assets before deleting records
     const [posts, documents] = await Promise.all([
-      Post.find({ family_id: familyId }).select("media_urls").lean() as Promise<{ media_urls?: string[] }[]>,
-      Document.find({ family_id: familyId }).select("file_path").lean() as Promise<{ file_path: string }[]>,
+      Post.find({ family_id: familyId }).select("media_urls").lean() as unknown as Promise<{ media_urls?: string[] }[]>,
+      Document.find({ family_id: familyId }).select("file_path").lean() as unknown as Promise<{ file_path: string }[]>,
     ]);
 
     const cloudinaryUrls = [
