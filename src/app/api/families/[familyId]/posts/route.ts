@@ -20,11 +20,12 @@ export async function GET(
     const limit = parseInt(searchParams.get("limit") ?? "20");
     const skip = parseInt(searchParams.get("offset") ?? "0");
 
+    type PostLean = { _id: string; family_id: string; author_id: string; content: string; media_urls: string[]; created_at: string };
     const posts = await Post.find({ family_id: familyId })
       .sort({ created_at: -1 })
       .skip(skip)
       .limit(limit)
-      .lean();
+      .lean() as unknown as PostLean[];
 
     const postIds = posts.map((p) => p._id);
 
