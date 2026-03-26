@@ -3,14 +3,14 @@ import { connectDB } from "@/lib/mongodb";
 import { requireAuth } from "@/lib/auth";
 import { TreeMember } from "@/models/TreeMember";
 import { TreeRelationship } from "@/models/TreeRelationship";
-import { Profile } from "@/models/Profile";
+import { FamilyMember } from "@/models/FamilyMember";
 import { randomUUID } from "crypto";
 
 type RelType = "parent" | "child" | "spouse" | "sibling" | "step_parent" | "step_child";
-type PlaceRelType =
-  | "parent" | "child" | "spouse" | "sibling" | "step_parent"
-  | "cousin" | "2nd_cousin" | "3rd_cousin" | "uncle_aunt" | "niece_nephew"
-  | "none";
+type ConnectRelType =
+  | "parent" | "child" | "spouse" | "sibling"
+  | "step_parent" | "step_child"
+  | "uncle_aunt" | "niece_nephew" | "cousin" | "2nd_cousin" | "3rd_cousin";
 
 const INVERSE: Record<RelType, RelType> = {
   parent: "child",
@@ -29,6 +29,7 @@ interface RelDoc {
   type: RelType;
 }
 
+// POST — connect an already-placed user node to another node
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ familyId: string }> }
@@ -37,63 +38,56 @@ export async function POST(
     const { userId } = requireAuth(req);
     await connectDB();
     const { familyId } = await params;
-    const { anchor_member_id, relationship } = await req.json() as {
-      anchor_member_id: string | null;
-      relationship: PlaceRelType | null;
+    const { my_member_id, target_member_id, relationship } = await req.json() as {
+      my_member_id: string;
+      target_member_id: string;
+      relationship: ConnectRelType;
     };
 
-    // Already placed?
-    const existing = await TreeMember.findOne({ family_id: familyId, profile_id: userId }).lean();
-    if (existing) return NextResponse.json({ member: existing, placeholders: [] });
-
-    const profile = await Profile.findById(userId).select("name gender avatar").lean() as unknown as { name: string; gender?: string; avatar?: string } | null;
-    if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
-
-    // Root node OR "none" placement — no connection needed
-    if (!anchor_member_id || !relationship || relationship === "none") {
-      const newMember = await TreeMember.create({
-        _id: randomUUID(),
-        family_id: familyId,
-        profile_id: userId,
-        name: profile.name,
-        gender: profile.gender ?? undefined,
-        photo: profile.avatar ?? undefined,
-        is_placeholder: false,
-        is_deceased: false,
-      });
-      return NextResponse.json({ member: newMember, placeholders: [] });
+    // Auth: must own my_member_id or be admin
+    const myNode = await TreeMember.findOne({ _id: my_member_id, family_id: familyId }).lean() as unknown as { _id: string; profile_id?: string } | null;
+    if (!myNode) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const isOwn = myNode.profile_id === userId;
+    if (!isOwn) {
+      const admin = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+      if (!admin) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const anchor = await TreeMember.findOne({ _id: anchor_member_id, family_id: familyId }).lean() as unknown as { _id: string } | null;
+    const anchor = await TreeMember.findOne({ _id: target_member_id, family_id: familyId }).lean() as unknown as { _id: string } | null;
     if (!anchor) return NextResponse.json({ error: "Anchor not found" }, { status: 404 });
 
-    const newMemberId = randomUUID();
+    // Load existing rels for deduplication
+    const existingRels = await TreeRelationship.find({ family_id: familyId }).lean() as unknown as { member_id: string; related_member_id: string; type: string }[];
+    const existingRelSet = new Set(existingRels.map((r) => `${r.member_id}|${r.related_member_id}|${r.type}`));
+
+    const newMemberId = my_member_id;
+    const anchorId = target_member_id;
     const rels: RelDoc[] = [];
     const placeholderDocs: object[] = [];
 
-    // Helpers
     const addRel = (a: string, b: string, type: RelType) => {
-      rels.push(
-        { _id: randomUUID(), family_id: familyId, member_id: a, related_member_id: b, type },
-        { _id: randomUUID(), family_id: familyId, member_id: b, related_member_id: a, type: INVERSE[type] }
-      );
+      const inv = INVERSE[type];
+      if (
+        !existingRelSet.has(`${a}|${b}|${type}`) &&
+        !rels.some((r) => r.member_id === a && r.related_member_id === b && r.type === type)
+      ) {
+        rels.push({ _id: randomUUID(), family_id: familyId, member_id: a, related_member_id: b, type });
+      }
+      if (
+        !existingRelSet.has(`${b}|${a}|${inv}`) &&
+        !rels.some((r) => r.member_id === b && r.related_member_id === a && r.type === inv)
+      ) {
+        rels.push({ _id: randomUUID(), family_id: familyId, member_id: b, related_member_id: a, type: inv });
+      }
     };
 
     const addPlaceholder = (name: string) => {
       const id = randomUUID();
-      placeholderDocs.push({
-        _id: id,
-        family_id: familyId,
-        name,
-        is_placeholder: true,
-        is_deceased: false,
-      });
+      placeholderDocs.push({ _id: id, family_id: familyId, name, is_placeholder: true, is_deceased: false });
       return id;
     };
 
-    const anchorId = anchor._id as string;
-
-    // ── CHILD: user is child of anchor ────────────────────────────────────────
+    // ── CHILD: I am a child of the anchor ────────────────────────────────────
     if (relationship === "child") {
       addRel(anchorId, newMemberId, "parent");
 
@@ -112,7 +106,7 @@ export async function POST(
         coParentId = phId;
       }
 
-      // Auto-create sibling rels with all existing children of anchor (and co-parent)
+      // Auto-sibling with existing children of both parents
       const parentIds = [anchorId, coParentId];
       const existingChildIds = new Set<string>();
       for (const pid of parentIds) {
@@ -125,7 +119,7 @@ export async function POST(
         if (sibId !== newMemberId) addRel(newMemberId, sibId, "sibling");
       }
 
-    // ── PARENT: user is parent of anchor ─────────────────────────────────────
+    // ── PARENT: I am a parent of the anchor ──────────────────────────────────
     } else if (relationship === "parent") {
       addRel(newMemberId, anchorId, "parent");
 
@@ -138,12 +132,10 @@ export async function POST(
         addRel(newMemberId, phId, "spouse");
         addRel(phId, anchorId, "parent");
       } else if (parentRels.length === 1) {
-        // Become spouse of the existing parent
         addRel(newMemberId, parentRels[0].related_member_id, "spouse");
       }
-      // 2+ parents → just add the parent edge (step-parent)
 
-    // ── SIBLING: user is sibling of anchor ───────────────────────────────────
+    // ── SIBLING: I am a sibling of the anchor ────────────────────────────────
     } else if (relationship === "sibling") {
       addRel(newMemberId, anchorId, "sibling");
 
@@ -152,7 +144,7 @@ export async function POST(
         family_id: familyId, member_id: anchorId, type: "sibling",
       }).lean() as unknown as { related_member_id: string }[];
       for (const sr of anchorSiblingRels) {
-        addRel(newMemberId, sr.related_member_id, "sibling");
+        if (sr.related_member_id !== newMemberId) addRel(newMemberId, sr.related_member_id, "sibling");
       }
 
       const parentRels = await TreeRelationship.find({
@@ -160,30 +152,35 @@ export async function POST(
       }).lean() as unknown as { related_member_id: string }[];
 
       if (parentRels.length > 0) {
-        // Inherit anchor's parents
         for (const pr of parentRels) {
           addRel(pr.related_member_id, newMemberId, "parent");
         }
       } else {
-        // Share a new placeholder parent
         const phId = addPlaceholder("Unknown Parent");
         addRel(phId, anchorId, "parent");
         addRel(phId, newMemberId, "parent");
       }
 
-    // ── SPOUSE: user is spouse of anchor ─────────────────────────────────────
+    // ── SPOUSE: I am the spouse of the anchor ────────────────────────────────
     } else if (relationship === "spouse") {
       addRel(newMemberId, anchorId, "spouse");
 
       const childRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "parent",
       }).lean() as unknown as { related_member_id: string }[];
-
       for (const cr of childRels) {
         addRel(newMemberId, cr.related_member_id, "parent");
       }
 
-    // ── UNCLE/AUNT: user is a sibling of anchor's parent ─────────────────────
+    // ── STEP_PARENT: anchor IS my step-parent, I am their step-child ─────────
+    } else if (relationship === "step_parent") {
+      addRel(anchorId, newMemberId, "step_parent");
+
+    // ── STEP_CHILD: anchor IS my step-child, I am their step-parent ──────────
+    } else if (relationship === "step_child") {
+      addRel(newMemberId, anchorId, "step_parent");
+
+    // ── UNCLE / AUNT: I am a sibling of the anchor's parent ──────────────────
     } else if (relationship === "uncle_aunt") {
       const parentRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "child",
@@ -191,33 +188,27 @@ export async function POST(
 
       if (parentRels.length > 0) {
         const anchorParentId = parentRels[0].related_member_id;
-        // Become sibling of anchor's existing parent
         addRel(newMemberId, anchorParentId, "sibling");
-        // Also become sibling of all existing siblings of anchor's parent
-        // (so multiple uncle/aunt placements stay interconnected)
         const parentSiblingRels = await TreeRelationship.find({
           family_id: familyId, member_id: anchorParentId, type: "sibling",
         }).lean() as unknown as { related_member_id: string }[];
         for (const sr of parentSiblingRels) {
-          addRel(newMemberId, sr.related_member_id, "sibling");
+          if (sr.related_member_id !== newMemberId) addRel(newMemberId, sr.related_member_id, "sibling");
         }
       } else {
-        // Create a placeholder parent for anchor; I become sibling of that placeholder
         const phParentId = addPlaceholder("Unknown Parent");
         addRel(phParentId, anchorId, "parent");
         addRel(newMemberId, phParentId, "sibling");
       }
 
-    // ── NIECE/NEPHEW: user is a child of anchor's sibling ────────────────────
+    // ── NIECE / NEPHEW: I am a child of the anchor's sibling ─────────────────
     } else if (relationship === "niece_nephew") {
       const siblingRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "sibling",
       }).lean() as unknown as { related_member_id: string }[];
 
-      // Create a placeholder sibling of the anchor (the "unknown parent" side)
       const phSiblingId = addPlaceholder("Unknown Parent");
       addRel(phSiblingId, anchorId, "sibling");
-      // Inherit any existing siblings too so the placeholder connects the group
       for (const sr of siblingRels) {
         addRel(phSiblingId, sr.related_member_id, "sibling");
       }
@@ -229,95 +220,104 @@ export async function POST(
         family_id: familyId, member_id: anchorId, type: "child",
       }).lean() as unknown as { related_member_id: string }[];
 
-      // My placeholder parent
-      const myParentId = addPlaceholder("Unknown Parent");
-      addRel(myParentId, newMemberId, "parent");
+      // Check if I already have a parent I can use
+      const myParentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: newMemberId, type: "child",
+      }).lean() as unknown as { related_member_id: string }[];
+
+      const myParentId = myParentRels.length > 0 ? myParentRels[0].related_member_id : addPlaceholder("Unknown Parent");
+      if (myParentRels.length === 0) addRel(myParentId, newMemberId, "parent");
 
       if (parentRels.length > 0) {
         const anchorParentId = parentRels[0].related_member_id;
-        // My placeholder parent is a sibling of anchor's existing parent
         addRel(myParentId, anchorParentId, "sibling");
-        // Also become sibling of all existing siblings of anchor's parent
-        // (so multiple cousin placements off the same anchor stay interconnected)
         const parentSiblingRels = await TreeRelationship.find({
           family_id: familyId, member_id: anchorParentId, type: "sibling",
         }).lean() as unknown as { related_member_id: string }[];
         for (const sr of parentSiblingRels) {
-          addRel(myParentId, sr.related_member_id, "sibling");
+          if (sr.related_member_id !== myParentId) addRel(myParentId, sr.related_member_id, "sibling");
         }
       } else {
-        // Neither side has parents yet — create placeholder for anchor's parent too
         const anchorParentId = addPlaceholder("Unknown Parent");
         addRel(anchorParentId, anchorId, "parent");
         addRel(myParentId, anchorParentId, "sibling");
       }
 
-    // ── 2ND COUSIN: grandparents are siblings (share a great-grandparent) ────
+    // ── 2ND COUSIN: grandparents are siblings ─────────────────────────────────
     } else if (relationship === "2nd_cousin") {
-      // Walk up anchor's lineage to find/create a grandparent node
       const anchorParentRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "child",
       }).lean() as unknown as { related_member_id: string }[];
 
       let anchorGParentId: string;
-
       if (anchorParentRels.length > 0) {
         const anchorParentId = anchorParentRels[0].related_member_id;
         const anchorGPRels = await TreeRelationship.find({
           family_id: familyId, member_id: anchorParentId, type: "child",
         }).lean() as unknown as { related_member_id: string }[];
-
         if (anchorGPRels.length > 0) {
-          // Anchor already has a grandparent — use it
           anchorGParentId = anchorGPRels[0].related_member_id;
         } else {
-          // Anchor's parent has no parent yet — create grandparent placeholder
           anchorGParentId = addPlaceholder("Unknown Grandparent");
           addRel(anchorGParentId, anchorParentId, "parent");
         }
       } else {
-        // Anchor has no parent yet — create parent + grandparent chain
         const phParentId = addPlaceholder("Unknown Parent");
         addRel(phParentId, anchorId, "parent");
         anchorGParentId = addPlaceholder("Unknown Grandparent");
         addRel(anchorGParentId, phParentId, "parent");
       }
 
-      // My branch: my grandparent is a sibling of anchor's grandparent
-      const myGParentId = addPlaceholder("Unknown Grandparent");
+      // My branch: use my existing parent/grandparent if available
+      const myParentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: newMemberId, type: "child",
+      }).lean() as unknown as { related_member_id: string }[];
+
+      let myGParentId: string;
+      if (myParentRels.length > 0) {
+        const myParentId = myParentRels[0].related_member_id;
+        const myGPRels = await TreeRelationship.find({
+          family_id: familyId, member_id: myParentId, type: "child",
+        }).lean() as unknown as { related_member_id: string }[];
+        if (myGPRels.length > 0) {
+          myGParentId = myGPRels[0].related_member_id;
+        } else {
+          myGParentId = addPlaceholder("Unknown Grandparent");
+          addRel(myGParentId, myParentId, "parent");
+        }
+      } else {
+        myGParentId = addPlaceholder("Unknown Grandparent");
+        const myParentId = addPlaceholder("Unknown Parent");
+        addRel(myGParentId, myParentId, "parent");
+        addRel(myParentId, newMemberId, "parent");
+      }
+
       addRel(myGParentId, anchorGParentId, "sibling");
-      // Also become sibling of all existing siblings of anchor's grandparent
       const gParentSiblingRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorGParentId, type: "sibling",
       }).lean() as unknown as { related_member_id: string }[];
       for (const sr of gParentSiblingRels) {
-        addRel(myGParentId, sr.related_member_id, "sibling");
+        if (sr.related_member_id !== myGParentId) addRel(myGParentId, sr.related_member_id, "sibling");
       }
-      const myParentId = addPlaceholder("Unknown Parent");
-      addRel(myGParentId, myParentId, "parent");
-      addRel(myParentId, newMemberId, "parent");
 
-    // ── 3RD COUSIN: great-grandparents are siblings (share great-great-gp) ─
+    // ── 3RD COUSIN: great-grandparents are siblings ───────────────────────────
     } else if (relationship === "3rd_cousin") {
-      // Walk up 3 levels from anchor, creating placeholders as needed
+      // Walk up anchor's lineage 3 levels
       const anchorParentRels = await TreeRelationship.find({
         family_id: familyId, member_id: anchorId, type: "child",
       }).lean() as unknown as { related_member_id: string }[];
 
       let anchorGGParentId: string;
-
       if (anchorParentRels.length > 0) {
         const anchorParentId = anchorParentRels[0].related_member_id;
         const anchorGPRels = await TreeRelationship.find({
           family_id: familyId, member_id: anchorParentId, type: "child",
         }).lean() as unknown as { related_member_id: string }[];
-
         if (anchorGPRels.length > 0) {
           const anchorGParentId = anchorGPRels[0].related_member_id;
           const anchorGGPRels = await TreeRelationship.find({
             family_id: familyId, member_id: anchorGParentId, type: "child",
           }).lean() as unknown as { related_member_id: string }[];
-
           if (anchorGGPRels.length > 0) {
             anchorGGParentId = anchorGGPRels[0].related_member_id;
           } else {
@@ -339,43 +339,58 @@ export async function POST(
         addRel(anchorGGParentId, phGParentId, "parent");
       }
 
-      // My branch: my great-grandparent is a sibling of anchor's great-grandparent
-      const myGGParentId = addPlaceholder("Unknown Great-Grandparent");
+      // My branch: use existing lineage where possible
+      const myParentRels = await TreeRelationship.find({
+        family_id: familyId, member_id: newMemberId, type: "child",
+      }).lean() as unknown as { related_member_id: string }[];
+
+      let myGGParentId: string;
+      if (myParentRels.length > 0) {
+        const myParentId = myParentRels[0].related_member_id;
+        const myGPRels = await TreeRelationship.find({
+          family_id: familyId, member_id: myParentId, type: "child",
+        }).lean() as unknown as { related_member_id: string }[];
+        if (myGPRels.length > 0) {
+          const myGParentId = myGPRels[0].related_member_id;
+          const myGGPRels = await TreeRelationship.find({
+            family_id: familyId, member_id: myGParentId, type: "child",
+          }).lean() as unknown as { related_member_id: string }[];
+          if (myGGPRels.length > 0) {
+            myGGParentId = myGGPRels[0].related_member_id;
+          } else {
+            myGGParentId = addPlaceholder("Unknown Great-Grandparent");
+            addRel(myGGParentId, myGParentId, "parent");
+          }
+        } else {
+          const phGParentId = addPlaceholder("Unknown Grandparent");
+          addRel(phGParentId, myParentId, "parent");
+          myGGParentId = addPlaceholder("Unknown Great-Grandparent");
+          addRel(myGGParentId, phGParentId, "parent");
+        }
+      } else {
+        const myParentId = addPlaceholder("Unknown Parent");
+        addRel(myParentId, newMemberId, "parent");
+        const myGParentId = addPlaceholder("Unknown Grandparent");
+        addRel(myGParentId, myParentId, "parent");
+        myGGParentId = addPlaceholder("Unknown Great-Grandparent");
+        addRel(myGGParentId, myGParentId, "parent");
+      }
+
       addRel(myGGParentId, anchorGGParentId, "sibling");
-      const myGParentId = addPlaceholder("Unknown Grandparent");
-      addRel(myGGParentId, myGParentId, "parent");
-      const myParentId = addPlaceholder("Unknown Parent");
-      addRel(myGParentId, myParentId, "parent");
-      addRel(myParentId, newMemberId, "parent");
-
-    // ── STEP_PARENT: user is step-parent of anchor ───────────────────────────
-    } else if (relationship === "step_parent") {
-      addRel(newMemberId, anchorId, "step_parent");
-
-    // ── NONE: place without any connection ───────────────────────────────────
-    } else if (relationship === "none") {
-      // No relationships added — node exists unconnected, can be linked later
+      const ggParentSiblingRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorGGParentId, type: "sibling",
+      }).lean() as unknown as { related_member_id: string }[];
+      for (const sr of ggParentSiblingRels) {
+        if (sr.related_member_id !== myGGParentId) addRel(myGGParentId, sr.related_member_id, "sibling");
+      }
     }
 
-    // Persist everything
-    const newMember = await TreeMember.create({
-      _id: newMemberId,
-      family_id: familyId,
-      profile_id: userId,
-      name: profile.name,
-      gender: profile.gender ?? undefined,
-      photo: profile.avatar ?? undefined,
-      is_placeholder: false,
-      is_deceased: false,
-    });
-
-    const placeholders =
-      placeholderDocs.length > 0 ? await TreeMember.insertMany(placeholderDocs) : [];
-
+    // Persist placeholders and relationships
+    if (placeholderDocs.length > 0) await TreeMember.insertMany(placeholderDocs);
     if (rels.length > 0) await TreeRelationship.insertMany(rels);
 
-    // Clean up any placeholder nodes that are now fully disconnected
-    const allRels = await TreeRelationship.find({ family_id: familyId }).lean();
+    // Clean up any orphaned placeholders
+    const allRels = await TreeRelationship.find({ family_id: familyId }).lean() as unknown as { member_id: string; related_member_id: string }[];
     const connectedIds = new Set(allRels.flatMap((r) => [r.member_id, r.related_member_id]));
     await TreeMember.deleteMany({
       family_id: familyId,
@@ -383,9 +398,10 @@ export async function POST(
       _id: { $nin: Array.from(connectedIds) },
     });
 
-    return NextResponse.json({ member: newMember, placeholders });
+    return NextResponse.json({ ok: true });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    const status = (err as Error).message === "Forbidden" ? 403 : 401;
+    return NextResponse.json({ error: (err as Error).message }, { status });
   }
 }

@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { TreeMember } from "@/models/TreeMember";
 import { TreeRelationship } from "@/models/TreeRelationship";
 import { FamilyMember } from "@/models/FamilyMember";
+import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
 
 async function requireAdmin(req: NextRequest, familyId: string) {
@@ -102,12 +103,22 @@ export async function PATCH(
   { params }: { params: Promise<{ familyId: string }> }
 ) {
   try {
+    const { userId } = requireAuth(req);
+    await connectDB();
     const { familyId } = await params;
-    await requireAdmin(req, familyId);
     const { searchParams } = new URL(req.url);
     const memberId = searchParams.get("memberId");
     if (!memberId)
       return NextResponse.json({ error: "Missing memberId" }, { status: 400 });
+
+    // Allow self-edit or admin
+    const target = await TreeMember.findOne({ _id: memberId, family_id: familyId }).lean();
+    if (!target) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const isSelf = (target as { profile_id?: string }).profile_id === userId;
+    if (!isSelf) {
+      const adminMembership = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+      if (!adminMembership) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const body = await req.json();
     const allowed = ["name", "dob", "dod", "gender", "photo", "status", "notes", "is_deceased"];
@@ -116,14 +127,39 @@ export async function PATCH(
       if (body[key] !== undefined) updates[key] = body[key];
     }
 
+    // profile_id linking — admin only
+    if (body.profile_id !== undefined) {
+      const adminCheck = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+      if (!adminCheck) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      updates.profile_id = body.profile_id || null;
+    }
+
+    // sync_profile — pull name/gender/photo from linked profile (admin only)
+    if (body.sync_profile) {
+      const adminCheck = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+      if (!adminCheck) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const pid = (updates.profile_id as string) ?? (target as { profile_id?: string }).profile_id;
+      if (pid) {
+        const profile = await Profile.findById(pid)
+          .select("name gender avatar dob status")
+          .lean() as { name?: string; gender?: string; avatar?: string; dob?: string; status?: string } | null;
+        if (profile) {
+          if (profile.name)   updates.name   = profile.name;
+          if (profile.gender) updates.gender = profile.gender;
+          if (profile.avatar) updates.photo  = profile.avatar;
+          if (profile.dob)    updates.dob    = profile.dob;
+          if (profile.status) updates.status = profile.status;
+        }
+      }
+    }
+
     const member = await TreeMember.findOneAndUpdate(
       { _id: memberId, family_id: familyId },
       { $set: updates },
       { new: true, lean: true }
-    );
-
+    ) as Record<string, unknown> | null;
     if (!member) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const m = member as Record<string, unknown>;
+    const m = member;
     return NextResponse.json({
       id: m._id, family_id: m.family_id, profile_id: m.profile_id,
       name: m.name, dob: m.dob, dod: m.dod, gender: m.gender,

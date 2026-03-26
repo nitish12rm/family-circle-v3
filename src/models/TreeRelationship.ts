@@ -8,7 +8,7 @@ const treeRelationshipSchema = new Schema(
     related_member_id: { type: String, required: true },
     type: {
       type: String,
-      enum: ["parent", "child", "spouse", "sibling"],
+      enum: ["parent", "child", "spouse", "sibling", "step_parent", "step_child"],
       required: true,
     },
   },

@@ -16,6 +16,7 @@ import { Input, Textarea } from "@/components/ui/Input";
 import DocPreviewModal from "@/components/documents/DocPreviewModal";
 import { compressImage } from "@/lib/imageCompression";
 import { downloadFile } from "@/lib/downloadFile";
+import { formatDOB } from "@/lib/formatDate";
 import type { Profile, Document } from "@/types";
 import { DOCUMENT_CATEGORIES } from "@/types";
 
@@ -224,7 +225,7 @@ export default function ProfileView() {
             )}
             {profile?.dob && (
               <p className="text-xs text-text-muted flex items-center gap-1.5">
-                <Calendar size={12} className="text-text-faint shrink-0" /> Born {profile.dob}
+                <Calendar size={12} className="text-text-faint shrink-0" /> Born {formatDOB(profile.dob)}
               </p>
             )}
             {profile?.goals && (
