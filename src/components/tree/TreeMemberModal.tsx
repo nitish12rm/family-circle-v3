@@ -10,12 +10,18 @@ import { api } from "@/lib/api";
 import { useUIStore } from "@/store/uiStore";
 import type { TreeMember, TreeRelationship } from "@/types";
 
+interface FamilyMemberEntry {
+  user_id: string;
+  profile: { id: string; name: string; avatar?: string } | null;
+}
+
 interface Props {
   member: TreeMember | null;
   familyId: string;
   treeData: { members: TreeMember[]; relationships: TreeRelationship[] };
   isAdmin: boolean;
   currentUserId?: string;
+  familyMembers: FamilyMemberEntry[];
   relLabel?: string;
   onClose: () => void;
   onDelete: (id: string) => void;
@@ -126,6 +132,7 @@ export default function TreeMemberModal({
   treeData,
   isAdmin,
   currentUserId,
+  familyMembers,
   relLabel,
   onClose,
   onDelete,
@@ -139,6 +146,9 @@ export default function TreeMemberModal({
   const [saving, setSaving] = useState(false);
   const [removingRelId, setRemovingRelId] = useState<string | null>(null);
   const [togglingRelId, setTogglingRelId] = useState<string | null>(null);
+  const [linkProfileId, setLinkProfileId] = useState("");
+  const [linking, setLinking] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [form, setForm] = useState({
     name: "",
     dob: "",
@@ -205,9 +215,50 @@ export default function TreeMemberModal({
     }
   };
 
+  const handleLinkProfile = async () => {
+    if (!member || !linkProfileId) return;
+    setLinking(true);
+    try {
+      const updated = await api.patch<TreeMember>(
+        `/api/families/${familyId}/tree?memberId=${member.id}`,
+        { profile_id: linkProfileId, sync_profile: true }
+      );
+      onUpdated(updated);
+      setLinkProfileId("");
+      showToast("Profile linked and synced", "success");
+    } catch {
+      showToast("Failed to link profile", "error");
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  const handleSyncProfile = async () => {
+    if (!member) return;
+    setSyncing(true);
+    try {
+      const updated = await api.patch<TreeMember>(
+        `/api/families/${familyId}/tree?memberId=${member.id}`,
+        { sync_profile: true }
+      );
+      onUpdated(updated);
+      showToast("Synced from profile", "success");
+    } catch {
+      showToast("Failed to sync", "error");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   if (!member) return null;
 
   const { members, relationships } = treeData;
+
+  // Family members not yet linked to any tree node
+  const linkedProfileIds = new Set(members.map((m) => m.profile_id).filter(Boolean));
+  const unlinkedFamilyMembers = familyMembers.filter(
+    (fm) => fm.profile && !linkedProfileIds.has(fm.user_id)
+  );
   const find = (id: string) => members.find((m) => m.id === id);
 
   // My own tree member node (for permission check)
@@ -421,6 +472,54 @@ export default function TreeMemberModal({
                   Pencil icon changes parent ↔ step-parent · × removes the link
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Admin: link an unlinked node to a family member's profile */}
+          {isAdmin && !member.profile_id && unlinkedFamilyMembers.length > 0 && (
+            <div className="flex flex-col gap-2 border-t border-border pt-4">
+              <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
+                Link to family member
+              </span>
+              <p className="text-xs text-text-faint">
+                Connect this node to someone already in the group. Their name, photo and gender will be synced automatically.
+              </p>
+              <select
+                value={linkProfileId}
+                onChange={(e) => setLinkProfileId(e.target.value)}
+                className="w-full bg-bg-2 border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent"
+              >
+                <option value="">Select member…</option>
+                {unlinkedFamilyMembers.map((fm) => (
+                  <option key={fm.user_id} value={fm.user_id}>
+                    {fm.profile!.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                onClick={handleLinkProfile}
+                loading={linking}
+                disabled={!linkProfileId}
+                className="w-full"
+              >
+                Link &amp; Sync
+              </Button>
+            </div>
+          )}
+
+          {/* Admin: sync linked node from profile */}
+          {isAdmin && member.profile_id && (
+            <div className="border-t border-border pt-4">
+              <Button
+                onClick={handleSyncProfile}
+                loading={syncing}
+                className="w-full"
+              >
+                Sync from Profile
+              </Button>
+              <p className="text-[10px] text-text-faint text-center mt-1.5">
+                Updates name, photo and gender from their account profile
+              </p>
             </div>
           )}
 

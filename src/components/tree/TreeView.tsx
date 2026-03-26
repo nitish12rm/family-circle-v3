@@ -263,8 +263,12 @@ export default function TreeView() {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Admin role
+  // Admin role + family members for linking
   const [isAdmin, setIsAdmin] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<{
+    user_id: string;
+    profile: { id: string; name: string; avatar?: string } | null;
+  }[]>([]);
   // Relation labels keyed by member id
   const [relLabels, setRelLabels] = useState<Map<string, string>>(new Map());
 
@@ -284,12 +288,15 @@ export default function TreeView() {
     try {
       const [data, members] = await Promise.all([
         api.get<TreeData>(`/api/families/${activeFamilyId}/tree`),
-        api.get<{ role: string; user_id: string }[]>(`/api/families/${activeFamilyId}/members`),
+        api.get<{ role: string; user_id: string; profile: { id: string; name: string; avatar?: string } | null }[]>(
+          `/api/families/${activeFamilyId}/members`
+        ),
       ]);
       if (user?.id) {
         const me = members.find((m) => m.user_id === user.id);
         setIsAdmin(me?.role === "admin");
       }
+      setFamilyMembers(members);
       setTreeData(data);
       const pos = buildLayout(data.members, data.relationships);
       setPositions(pos);
@@ -770,6 +777,7 @@ export default function TreeView() {
           treeData={treeData}
           isAdmin={isAdmin}
           currentUserId={user?.id}
+          familyMembers={familyMembers}
           relLabel={selectedMember ? relLabels.get(selectedMember.id) : undefined}
           onClose={() => setSelectedMember(null)}
           onDelete={(id) => {

@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { TreeMember } from "@/models/TreeMember";
 import { TreeRelationship } from "@/models/TreeRelationship";
 import { FamilyMember } from "@/models/FamilyMember";
+import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
 
 async function requireAdmin(req: NextRequest, familyId: string) {
@@ -124,6 +125,30 @@ export async function PATCH(
     const updates: Record<string, unknown> = {};
     for (const key of allowed) {
       if (body[key] !== undefined) updates[key] = body[key];
+    }
+
+    // profile_id linking — admin only
+    if (body.profile_id !== undefined) {
+      const adminCheck = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+      if (!adminCheck) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      updates.profile_id = body.profile_id || null;
+    }
+
+    // sync_profile — pull name/gender/photo from linked profile (admin only)
+    if (body.sync_profile) {
+      const adminCheck = await FamilyMember.findOne({ family_id: familyId, user_id: userId, role: "admin" }).lean();
+      if (!adminCheck) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      const pid = (updates.profile_id as string) ?? (target as { profile_id?: string }).profile_id;
+      if (pid) {
+        const profile = await Profile.findById(pid).select("name gender avatar").lean() as {
+          name?: string; gender?: string; avatar?: string;
+        } | null;
+        if (profile) {
+          if (profile.name) updates.name = profile.name;
+          if (profile.gender) updates.gender = profile.gender;
+          if (profile.avatar) updates.photo = profile.avatar;
+        }
+      }
     }
 
     const member = await TreeMember.findOneAndUpdate(
