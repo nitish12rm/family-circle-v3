@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, Image as ImageIcon, X } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
@@ -14,6 +15,7 @@ import { formatDistanceToNow } from "date-fns";
 import type { Post } from "@/types";
 
 export default function FeedView() {
+  const router = useRouter();
   const { activeFamilyId } = useFamilyStore();
   const { user, profile } = useAuthStore();
   const { showToast } = useUIStore();
@@ -149,16 +151,21 @@ export default function FeedView() {
               className="bg-bg-2 border border-border rounded-2xl p-4 animate-fade-in"
             >
               <div className="flex items-start gap-3">
-                <Avatar
-                  src={post.author?.avatar}
-                  name={post.author?.name}
-                  size={36}
-                />
+                <button onClick={() => router.push(`/profile/${post.author_id}`)}>
+                  <Avatar
+                    src={post.author?.avatar}
+                    name={post.author?.name}
+                    size={36}
+                  />
+                </button>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-text">
+                    <button
+                      onClick={() => router.push(`/profile/${post.author_id}`)}
+                      className="text-sm font-medium text-text hover:text-accent transition-colors"
+                    >
                       {post.author?.name ?? "Unknown"}
-                    </span>
+                    </button>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-text-faint">
                         {formatDistanceToNow(new Date(post.created_at), {
