@@ -275,7 +275,7 @@ export default function TreeView() {
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden"
-      style={{ height: "calc(100vh - 134px)" }}
+      style={{ height: "var(--content-h)" }}
     >
       {/* Controls */}
       <div className="absolute top-3 right-3 z-10 flex flex-col gap-2">

@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Safe area insets (non-zero on notched iOS/Android in PWA mode) */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+
+  /* App shell dimensions */
+  --topbar-h: calc(3.5rem + var(--sat));   /* 56px + status bar */
+  --bottomnav-h: calc(5rem + var(--sab));  /* 80px + home indicator */
+  --content-h: calc(100dvh - var(--topbar-h) - var(--bottomnav-h));
+}
+
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
@@ -11,6 +24,12 @@ html,
 body {
   height: 100%;
   overscroll-behavior: none;
+}
+
+/* Prevent PWA rubber-band scroll on the root */
+#__next {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
@@ -83,13 +102,9 @@ body::before {
   border-radius: 2px;
 }
 
-/* Safe area helpers */
-.safe-top {
-  padding-top: env(safe-area-inset-top);
-}
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom);
-}
+/* Safe area helpers (kept for backward compat) */
+.safe-top  { padding-top:    var(--sat); }
+.safe-bottom { padding-bottom: var(--sab); }
 
 /* Input autofill */
 input:-webkit-autofill {
