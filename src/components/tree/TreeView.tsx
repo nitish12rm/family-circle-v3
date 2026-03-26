@@ -473,10 +473,29 @@ export default function TreeView() {
 
               const lineColor = "rgba(255,255,255,0.2)";
 
+              // Parent-side junction: a short drop from each parent into a horizontal bar
+              const parentJunctionY = parentBottomY + 20;
+
               return (
                 <g key={`conn-${coupleKey}`}>
-                  {/* Stem: couple midpoint → junction */}
-                  <line x1={stemX} y1={parentBottomY} x2={stemX} y2={junctionY}
+                  {/* Short drops from each parent down to the parent bar */}
+                  {parentPos.map((pp, i) => (
+                    <line key={`pd-${i}`}
+                      x1={pp.x + NODE_W / 2} y1={parentBottomY}
+                      x2={pp.x + NODE_W / 2} y2={parentJunctionY}
+                      stroke={lineColor} strokeWidth={1.5} />
+                  ))}
+                  {/* Horizontal bar joining all parents */}
+                  {parentPos.length > 1 && (
+                    <line
+                      x1={Math.min(...parentPos.map((p) => p.x + NODE_W / 2))}
+                      y1={parentJunctionY}
+                      x2={Math.max(...parentPos.map((p) => p.x + NODE_W / 2))}
+                      y2={parentJunctionY}
+                      stroke={lineColor} strokeWidth={1.5} />
+                  )}
+                  {/* Stem from midpoint of parent bar down to children junction */}
+                  <line x1={stemX} y1={parentJunctionY} x2={stemX} y2={junctionY}
                     stroke={lineColor} strokeWidth={1.5} />
                   {/* Horizontal bar spanning all children */}
                   {childPos.length > 1 && (
@@ -485,7 +504,7 @@ export default function TreeView() {
                   )}
                   {/* Vertical drops to each child */}
                   {childPos.map((cp, i) => (
-                    <line key={i} x1={cp.x + NODE_W / 2} y1={junctionY} x2={cp.x + NODE_W / 2} y2={cp.y}
+                    <line key={`cd-${i}`} x1={cp.x + NODE_W / 2} y1={junctionY} x2={cp.x + NODE_W / 2} y2={cp.y}
                       stroke={lineColor} strokeWidth={1.5} />
                   ))}
                 </g>
