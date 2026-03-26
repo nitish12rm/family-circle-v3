@@ -190,8 +190,17 @@ export async function POST(
       }).lean() as unknown as { related_member_id: string }[];
 
       if (parentRels.length > 0) {
+        const anchorParentId = parentRels[0].related_member_id;
         // Become sibling of anchor's existing parent
-        addRel(newMemberId, parentRels[0].related_member_id, "sibling");
+        addRel(newMemberId, anchorParentId, "sibling");
+        // Also become sibling of all existing siblings of anchor's parent
+        // (so multiple uncle/aunt placements stay interconnected)
+        const parentSiblingRels = await TreeRelationship.find({
+          family_id: familyId, member_id: anchorParentId, type: "sibling",
+        }).lean() as unknown as { related_member_id: string }[];
+        for (const sr of parentSiblingRels) {
+          addRel(newMemberId, sr.related_member_id, "sibling");
+        }
       } else {
         // Create a placeholder parent for anchor; I become sibling of that placeholder
         const phParentId = addPlaceholder("Unknown Parent");
@@ -225,8 +234,17 @@ export async function POST(
       addRel(myParentId, newMemberId, "parent");
 
       if (parentRels.length > 0) {
+        const anchorParentId = parentRels[0].related_member_id;
         // My placeholder parent is a sibling of anchor's existing parent
-        addRel(myParentId, parentRels[0].related_member_id, "sibling");
+        addRel(myParentId, anchorParentId, "sibling");
+        // Also become sibling of all existing siblings of anchor's parent
+        // (so multiple cousin placements off the same anchor stay interconnected)
+        const parentSiblingRels = await TreeRelationship.find({
+          family_id: familyId, member_id: anchorParentId, type: "sibling",
+        }).lean() as unknown as { related_member_id: string }[];
+        for (const sr of parentSiblingRels) {
+          addRel(myParentId, sr.related_member_id, "sibling");
+        }
       } else {
         // Neither side has parents yet — create placeholder for anchor's parent too
         const anchorParentId = addPlaceholder("Unknown Parent");
@@ -268,6 +286,13 @@ export async function POST(
       // My branch: my grandparent is a sibling of anchor's grandparent
       const myGParentId = addPlaceholder("Unknown Grandparent");
       addRel(myGParentId, anchorGParentId, "sibling");
+      // Also become sibling of all existing siblings of anchor's grandparent
+      const gParentSiblingRels = await TreeRelationship.find({
+        family_id: familyId, member_id: anchorGParentId, type: "sibling",
+      }).lean() as unknown as { related_member_id: string }[];
+      for (const sr of gParentSiblingRels) {
+        addRel(myGParentId, sr.related_member_id, "sibling");
+      }
       const myParentId = addPlaceholder("Unknown Parent");
       addRel(myGParentId, myParentId, "parent");
       addRel(myParentId, newMemberId, "parent");
