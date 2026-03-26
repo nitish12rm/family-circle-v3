@@ -7,22 +7,42 @@ import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
 import { api } from "@/lib/api";
 import { useUIStore } from "@/store/uiStore";
+import { useAuthStore } from "@/store/authStore";
 import type { TreeMember, TreeRelationship } from "@/types";
 
 type Step = "root" | "anchor" | "relation" | "preview";
 type Relation = "child" | "parent" | "sibling" | "spouse";
 
-const RELATIONS: {
-  value: Relation;
-  label: string;
-  desc: string;
-  emoji: string;
-}[] = [
-  { value: "child",   label: "Their child",   desc: "I am their son / daughter", emoji: "🧒" },
-  { value: "parent",  label: "Their parent",  desc: "I am their father / mother", emoji: "🧑‍🦳" },
-  { value: "sibling", label: "Their sibling", desc: "I am their brother / sister", emoji: "🧑‍🤝‍🧑" },
-  { value: "spouse",  label: "Their spouse",  desc: "I am their partner",          emoji: "💍" },
-];
+function getRelations(gender?: string): { value: Relation; label: string; desc: string; emoji: string }[] {
+  const m = gender === "male";
+  const f = gender === "female";
+  return [
+    {
+      value: "child",
+      label: m ? "Their son" : f ? "Their daughter" : "Their child",
+      desc: m ? "I am their son" : f ? "I am their daughter" : "I am their son / daughter",
+      emoji: m ? "👦" : f ? "👧" : "🧒",
+    },
+    {
+      value: "parent",
+      label: m ? "Their father" : f ? "Their mother" : "Their parent",
+      desc: m ? "I am their father" : f ? "I am their mother" : "I am their father / mother",
+      emoji: m ? "👨" : f ? "👩" : "🧑‍🦳",
+    },
+    {
+      value: "sibling",
+      label: m ? "Their brother" : f ? "Their sister" : "Their sibling",
+      desc: m ? "I am their brother" : f ? "I am their sister" : "I am their brother / sister",
+      emoji: m ? "👱‍♂️" : f ? "👱‍♀️" : "🧑‍🤝‍🧑",
+    },
+    {
+      value: "spouse",
+      label: m ? "Their husband" : f ? "Their wife" : "Their spouse",
+      desc: m ? "I am their husband" : f ? "I am their wife" : "I am their partner",
+      emoji: m ? "🤵" : f ? "👰" : "💍",
+    },
+  ];
+}
 
 interface TreeData {
   members: TreeMember[];
@@ -94,6 +114,8 @@ function buildPreview(
 
 export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }: Props) {
   const { showToast } = useUIStore();
+  const { profile } = useAuthStore();
+  const RELATIONS = getRelations(profile?.gender);
   const [step, setStep] = useState<Step>("anchor");
   const [treeData, setTreeData] = useState<TreeData>({ members: [], relationships: [] });
   const [loading, setLoading] = useState(true);
@@ -278,8 +300,7 @@ export default function PlaceMemberModal({ open, familyId, onComplete, onSkip }:
                   <div>
                     <p className="text-sm font-semibold text-text">{anchor.name}</p>
                     <p className="text-xs text-text-muted">
-                      You are their{" "}
-                      <span className="text-accent font-medium">{relation}</span>
+                      {RELATIONS.find((r) => r.value === relation)?.label ?? relation}
                     </p>
                   </div>
                 </div>

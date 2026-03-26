@@ -16,6 +16,7 @@ interface PublicProfile {
   dob?: string;
   education?: string;
   goals?: string;
+  gender?: string;
   created_at: string;
 }
 

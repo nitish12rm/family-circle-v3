@@ -39,7 +39,7 @@ export async function POST(
     const existing = await TreeMember.findOne({ family_id: familyId, profile_id: userId }).lean();
     if (existing) return NextResponse.json({ member: existing, placeholders: [] });
 
-    const profile = await Profile.findById(userId).select("name").lean() as { name: string } | null;
+    const profile = await Profile.findById(userId).select("name gender").lean() as { name: string; gender?: string } | null;
     if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
 
     // Root node — first member in the tree
@@ -49,6 +49,7 @@ export async function POST(
         family_id: familyId,
         profile_id: userId,
         name: profile.name,
+        gender: profile.gender ?? undefined,
         is_placeholder: false,
         is_deceased: false,
       });
@@ -157,6 +158,7 @@ export async function POST(
       family_id: familyId,
       profile_id: userId,
       name: profile.name,
+      gender: profile.gender ?? undefined,
       is_placeholder: false,
       is_deceased: false,
     });

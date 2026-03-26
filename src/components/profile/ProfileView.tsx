@@ -19,6 +19,7 @@ export default function ProfileView() {
     status: profile?.status ?? "",
     education: profile?.education ?? "",
     goals: profile?.goals ?? "",
+    gender: profile?.gender ?? "",
   });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -96,6 +97,29 @@ export default function ProfileView() {
             disabled
             className="opacity-60"
           />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-text-muted">Gender</label>
+            <div className="flex gap-2">
+              {[
+                { value: "male", label: "Male" },
+                { value: "female", label: "Female" },
+                { value: "other", label: "Other" },
+              ].map((g) => (
+                <button
+                  key={g.value}
+                  type="button"
+                  onClick={() => setForm({ ...form, gender: form.gender === g.value ? "" : g.value })}
+                  className={`flex-1 py-2 text-sm rounded-xl border transition-all ${
+                    form.gender === g.value
+                      ? "border-accent bg-accent-muted text-accent"
+                      : "border-border bg-bg-3 text-text-muted"
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <Input
             label="Date of Birth"
             type="date"
