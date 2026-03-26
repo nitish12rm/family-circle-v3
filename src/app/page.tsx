@@ -5,15 +5,16 @@ import { useAuthStore } from "@/store/authStore";
 
 export default function RootPage() {
   const router = useRouter();
-  const token = useAuthStore((s) => s.token);
+  const { token, _hasHydrated } = useAuthStore();
 
   useEffect(() => {
+    if (!_hasHydrated) return;
     if (token) {
       router.replace("/feed");
     } else {
       router.replace("/auth");
     }
-  }, [token, router]);
+  }, [token, _hasHydrated, router]);
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center">

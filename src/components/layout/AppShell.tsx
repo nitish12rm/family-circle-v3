@@ -7,20 +7,22 @@ import { api } from "@/lib/api";
 import TopBar from "./TopBar";
 import BottomNav from "./BottomNav";
 import ToastContainer from "@/components/ui/Toast";
+import Spinner from "@/components/ui/Spinner";
 import type { Profile, Family } from "@/types";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const { token, user, profile, profileLoaded, setProfile, clearAuth } =
+  const { token, user, profile, profileLoaded, _hasHydrated, setProfile, clearAuth } =
     useAuthStore();
   const { setFamilies } = useFamilyStore();
 
-  // Auth guard
+  // Auth guard — wait for localStorage hydration before deciding
   useEffect(() => {
+    if (!_hasHydrated) return;
     if (!token) {
       router.replace("/auth");
     }
-  }, [token, router]);
+  }, [_hasHydrated, token, router]);
 
   // Load profile
   useEffect(() => {
@@ -44,6 +46,15 @@ export default function AppShell({ children }: { children: ReactNode }) {
       .then(setFamilies)
       .catch(() => {});
   }, [token, setFamilies]);
+
+  // Show spinner while hydrating from localStorage
+  if (!_hasHydrated) {
+    return (
+      <div className="min-h-screen bg-bg flex items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
 
   if (!token || !user) return null;
 
