@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, FileText, ImageIcon, GraduationCap, Target, Calendar, Search, Eye, Download } from "lucide-react";
+import { ArrowLeft, FileText, ImageIcon, GraduationCap, Target, Calendar, Search, Eye, Download, MessageCircle } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
@@ -206,6 +206,15 @@ export default function UserProfileView({ userId }: { userId: string }) {
             <p className="text-xs text-text-muted">Docs</p>
           </div>
         </div>
+
+        {!isOwnProfile && (
+          <button
+            onClick={() => router.push(`/chat?dm=${userId}`)}
+            className="w-full flex items-center justify-center gap-2 py-2 text-sm font-semibold border border-border rounded-lg bg-bg-2 hover:bg-bg-3 text-text transition-colors mb-4"
+          >
+            <MessageCircle size={15} /> Message
+          </button>
+        )}
 
         {/* Info rows */}
         <div className="flex flex-col gap-2.5">
