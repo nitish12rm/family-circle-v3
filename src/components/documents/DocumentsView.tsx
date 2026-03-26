@@ -10,6 +10,7 @@ import Modal from "@/components/ui/Modal";
 import { Input, Textarea } from "@/components/ui/Input";
 import Spinner from "@/components/ui/Spinner";
 import DocPreviewModal from "@/components/documents/DocPreviewModal";
+import { compressImage } from "@/lib/imageCompression";
 import { downloadFile } from "@/lib/downloadFile";
 import { formatDistanceToNow } from "date-fns";
 import type { Document } from "@/types";
@@ -46,6 +47,7 @@ export default function DocumentsView() {
   const [category, setCategory] = useState<string>("Other");
   const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [uploading, setUploading] = useState(false);
+  const [compressing, setCompressing] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -105,11 +107,22 @@ export default function DocumentsView() {
     return Object.entries(map);
   }, [filteredDocs]);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    setFile(f);
-    if (!docName) setDocName(f.name.replace(/\.[^.]+$/, ""));
+    if (f.type.startsWith("image/") && f.type !== "image/gif") {
+      setCompressing(true);
+      try {
+        const compressed = await compressImage(f, true);
+        setFile(compressed);
+        if (!docName) setDocName(f.name.replace(/\.[^.]+$/, ""));
+      } finally {
+        setCompressing(false);
+      }
+    } else {
+      setFile(f);
+      if (!docName) setDocName(f.name.replace(/\.[^.]+$/, ""));
+    }
   };
 
   const handleUpload = async () => {
@@ -309,7 +322,12 @@ export default function DocumentsView() {
             className="border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-accent transition-colors"
             onClick={() => document.getElementById("doc-file-input")?.click()}
           >
-            {file ? (
+            {compressing ? (
+              <div className="flex items-center justify-center gap-2">
+                <Spinner size={16} />
+                <span className="text-sm text-text-muted">Compressing…</span>
+              </div>
+            ) : file ? (
               <div className="flex items-center justify-center gap-2">
                 <span className="text-lg">{fileIcon(file.type)}</span>
                 <span className="text-sm text-text">{file.name}</span>
@@ -325,7 +343,7 @@ export default function DocumentsView() {
               <>
                 <Upload size={24} className="mx-auto text-text-faint mb-2" />
                 <p className="text-sm text-text-muted">Click to select a file</p>
-                <p className="text-xs text-text-faint mt-1">Images, PDFs, and documents supported</p>
+                <p className="text-xs text-text-faint mt-1">Images are compressed and kept in original format</p>
               </>
             )}
           </div>
