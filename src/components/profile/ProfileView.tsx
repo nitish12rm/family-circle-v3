@@ -277,25 +277,55 @@ export default function ProfileView() {
             <p className="text-text-muted text-sm">No posts yet.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-px bg-border">
-            {posts.map((post) => (
-              <div key={post.id} className="aspect-square bg-bg-3 overflow-hidden relative">
-                {(post.media_urls ?? []).length > 0 ? (
-                  <img src={post.media_urls[0]} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center p-2">
-                    <p className="text-xs text-text-muted text-center line-clamp-4 leading-relaxed">
-                      {post.content}
-                    </p>
-                  </div>
-                )}
-                {(post.media_urls ?? []).length > 1 && (
-                  <div className="absolute top-1.5 right-1.5 w-4 h-4 bg-black/60 rounded flex items-center justify-center">
-                    <Grid3X3 size={9} className="text-white" />
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="px-4 py-4 grid grid-cols-2 gap-3">
+            {posts.map((post) => {
+              const media = post.media_urls ?? [];
+              return (
+                <div
+                  key={post.id}
+                  className="rounded-2xl overflow-hidden border border-border bg-bg-2 flex flex-col"
+                >
+                  {media.length > 0 ? (
+                    <>
+                      {/* Image tile */}
+                      <div className="relative aspect-square">
+                        <img
+                          src={media[0]}
+                          alt=""
+                          className="w-full h-full object-cover"
+                        />
+                        {/* Gradient overlay with timestamp */}
+                        <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
+                        <span className="absolute bottom-2 left-2.5 text-[10px] text-white/80 font-medium">
+                          {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                        </span>
+                        {media.length > 1 && (
+                          <div className="absolute top-2 right-2 w-5 h-5 bg-black/55 backdrop-blur-sm rounded-md flex items-center justify-center">
+                            <Grid3X3 size={10} className="text-white" />
+                          </div>
+                        )}
+                      </div>
+                      {/* Caption below image */}
+                      {post.content ? (
+                        <p className="text-xs text-text-muted px-3 pt-2 pb-2.5 line-clamp-2 leading-relaxed">
+                          {post.content}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    /* Text-only post */
+                    <div className="flex flex-col justify-between p-4 min-h-[140px] bg-gradient-to-br from-accent/10 via-accent/5 to-transparent">
+                      <p className="text-sm text-text font-medium leading-relaxed line-clamp-5 flex-1">
+                        {post.content}
+                      </p>
+                      <span className="text-[10px] text-text-faint mt-3">
+                        {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )
       )}
