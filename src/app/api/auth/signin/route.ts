@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       token,
       user: { id: profile._id, email: profile.email, name: profile.name },
+      onboarding_complete: profile.onboarding_complete ?? false,
     });
   } catch (err) {
     console.error(err);

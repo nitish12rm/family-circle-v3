@@ -36,7 +36,11 @@ export default function AuthForm() {
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
 
       setAuth(data.token, data.user);
-      router.replace(mode === "signup" ? "/onboarding" : "/feed");
+      if (mode === "signup") {
+        router.replace("/onboarding");
+      } else {
+        router.replace(data.onboarding_complete ? "/feed" : "/onboarding");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

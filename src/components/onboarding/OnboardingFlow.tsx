@@ -28,8 +28,13 @@ export default function OnboardingFlow() {
   const [inviteCode, setInviteCode] = useState("");
 
   useEffect(() => {
-    if (!token) router.replace("/auth");
-  }, [token, router]);
+    if (!token) { router.replace("/auth"); return; }
+    // If onboarding already complete (e.g. returning user navigated here directly), skip to feed
+    api.get<Profile>("/api/profile").then((p) => {
+      if (p.onboarding_complete) router.replace("/feed");
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleProfileNext = async () => {
     setLoading(true);
