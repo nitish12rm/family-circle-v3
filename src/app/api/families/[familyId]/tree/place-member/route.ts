@@ -7,7 +7,10 @@ import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
 
 type RelType = "parent" | "child" | "spouse" | "sibling" | "step_parent" | "step_child";
-type PlaceRelType = RelType | "cousin" | "2nd_cousin" | "3rd_cousin" | "uncle_aunt" | "niece_nephew" | "none";
+type PlaceRelType =
+  | "parent" | "child" | "spouse" | "sibling" | "step_parent"
+  | "cousin" | "2nd_cousin" | "3rd_cousin" | "uncle_aunt" | "niece_nephew"
+  | "none";
 
 const INVERSE: Record<RelType, RelType> = {
   parent: "child",
