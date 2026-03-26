@@ -9,7 +9,7 @@ export default function AuthForm() {
   const router = useRouter();
   const { setAuth } = useAuthStore();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", gender: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +23,7 @@ export default function AuthForm() {
         mode === "signup" ? "/api/auth/signup" : "/api/auth/signin";
       const body =
         mode === "signup"
-          ? { name: form.name, email: form.email, password: form.password }
+          ? { name: form.name, email: form.email, password: form.password, gender: form.gender || undefined }
           : { email: form.email, password: form.password };
 
       const res = await fetch(endpoint, {
@@ -72,13 +72,38 @@ export default function AuthForm() {
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             {mode === "signup" && (
-              <Input
-                label="Full Name"
-                placeholder="Jane Smith"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                required
-              />
+              <>
+                <Input
+                  label="Full Name"
+                  placeholder="Jane Smith"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  required
+                />
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium text-text-muted">Gender</label>
+                  <div className="flex gap-2">
+                    {[
+                      { value: "male", label: "Male" },
+                      { value: "female", label: "Female" },
+                      { value: "other", label: "Other" },
+                    ].map((g) => (
+                      <button
+                        key={g.value}
+                        type="button"
+                        onClick={() => setForm({ ...form, gender: form.gender === g.value ? "" : g.value })}
+                        className={`flex-1 py-2 text-sm rounded-xl border transition-all ${
+                          form.gender === g.value
+                            ? "border-accent bg-accent-muted text-accent"
+                            : "border-border bg-bg-3 text-text-muted"
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
             <Input
               label="Email"

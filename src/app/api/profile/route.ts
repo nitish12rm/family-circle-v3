@@ -14,6 +14,7 @@ function toProfile(p: Record<string, unknown>) {
     status: p.status,
     education: p.education,
     goals: p.goals,
+    gender: p.gender,
     onboarding_complete: p.onboarding_complete,
     created_at: p.created_at,
   };
@@ -36,7 +37,7 @@ export async function PATCH(req: NextRequest) {
     const { userId } = requireAuth(req);
     await connectDB();
     const body = await req.json();
-    const allowed = ["name", "dob", "phone", "avatar", "status", "education", "goals", "onboarding_complete"];
+    const allowed = ["name", "dob", "phone", "avatar", "status", "education", "goals", "gender", "onboarding_complete"];
     const updates: Record<string, unknown> = {};
     for (const key of allowed) {
       if (body[key] !== undefined) updates[key] = body[key];

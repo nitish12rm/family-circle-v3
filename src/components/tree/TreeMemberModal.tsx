@@ -25,11 +25,20 @@ const GENDER_COLOR: Record<string, string> = {
   other: "bg-accent/20 text-accent border-accent/30",
 };
 
-function RelChip({ name, photo }: { name: string; photo?: string }) {
+function relLabel(type: "parent" | "child" | "spouse" | "sibling", gender?: string) {
+  const m = gender === "male", f = gender === "female";
+  if (type === "parent")  return m ? "Father" : f ? "Mother" : "Parent";
+  if (type === "child")   return m ? "Son"    : f ? "Daughter" : "Child";
+  if (type === "sibling") return m ? "Brother": f ? "Sister" : "Sibling";
+  if (type === "spouse")  return m ? "Husband": f ? "Wife" : "Partner";
+  return type;
+}
+
+function RelChip({ name, photo, label }: { name: string; photo?: string; label?: string }) {
   return (
     <div className="flex items-center gap-1.5 bg-bg-3 border border-border rounded-full px-2.5 py-1">
       <Avatar name={name} src={photo} size={18} />
-      <span className="text-xs text-text-muted">{name}</span>
+      <span className="text-xs text-text-muted">{label ? `${label} · ` : ""}{name}</span>
     </div>
   );
 }
@@ -248,17 +257,25 @@ export default function TreeMemberModal({
             <div className="flex flex-col gap-3 border-t border-border pt-4">
               {parents.length > 0 && (
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">Parents</span>
+                  <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
+                    {parents.length === 1 ? relLabel("parent", parents[0].gender) : "Parents"}
+                  </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {parents.map((p) => <RelChip key={p.id} name={p.name} photo={p.photo} />)}
+                    {parents.map((p) => (
+                      <RelChip key={p.id} name={p.name} photo={p.photo} label={relLabel("parent", p.gender)} />
+                    ))}
                   </div>
                 </div>
               )}
               {spouses.length > 0 && (
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">Spouse</span>
+                  <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">
+                    {relLabel("spouse", spouses[0].gender)}
+                  </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {spouses.map((s) => <RelChip key={s.id} name={s.name} photo={s.photo} />)}
+                    {spouses.map((s) => (
+                      <RelChip key={s.id} name={s.name} photo={s.photo} />
+                    ))}
                   </div>
                 </div>
               )}
@@ -266,7 +283,9 @@ export default function TreeMemberModal({
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">Children</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {children.map((c) => <RelChip key={c.id} name={c.name} photo={c.photo} />)}
+                    {children.map((c) => (
+                      <RelChip key={c.id} name={c.name} photo={c.photo} label={relLabel("child", c.gender)} />
+                    ))}
                   </div>
                 </div>
               )}
@@ -274,7 +293,9 @@ export default function TreeMemberModal({
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">Siblings</span>
                   <div className="flex flex-wrap gap-1.5">
-                    {siblings.map((s) => <RelChip key={s.id} name={s.name} photo={s.photo} />)}
+                    {siblings.map((s) => (
+                      <RelChip key={s.id} name={s.name} photo={s.photo} label={relLabel("sibling", s.gender)} />
+                    ))}
                   </div>
                 </div>
               )}

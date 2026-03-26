@@ -16,6 +16,7 @@ export interface Profile {
   status?: string;
   education?: string;
   goals?: string;
+  gender?: "male" | "female" | "other";
   onboarding_complete: boolean;
   created_at: string;
 }

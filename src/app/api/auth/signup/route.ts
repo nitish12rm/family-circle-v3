@@ -7,7 +7,7 @@ import { randomUUID } from "crypto";
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, password, name } = await req.json();
+    const { email, password, name, gender } = await req.json();
     if (!email || !password || !name) {
       return NextResponse.json(
         { error: "Email, password and name are required" },
@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
       email: email.toLowerCase(),
       password: hashed,
       name: name.trim(),
+      gender: gender ?? null,
     });
 
     const token = signToken({ userId: id, email: profile.email });
