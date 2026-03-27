@@ -145,7 +145,7 @@ function AssignmentDetail({
     if (!updateText.trim()) return;
     setSendingUpdate(true);
     try {
-      const u = await api.post(`/api/assignments/${a.id}/updates`, { text: updateText.trim() });
+      const u = await api.post<import("@/types").AssignmentUpdate>(`/api/assignments/${a.id}/updates`, { text: updateText.trim() });
       onUpdate({ id: a.id, updates: [...a.updates, u] });
       setUpdateText("");
     } catch {
