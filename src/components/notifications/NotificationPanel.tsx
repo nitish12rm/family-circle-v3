@@ -69,16 +69,22 @@ function getNotificationText(n: AppNotification): { title: string; subtitle?: st
     case "new_assignment":
       return {
         title: `${actor} assigned you a task`,
-        subtitle: meta.title ? String(meta.title) : undefined,
+        subtitle: meta.title ? `"${String(meta.title)}"` : undefined,
       };
     case "assignment_update":
+      if (meta.status_change) {
+        return {
+          title: `${actor} changed status`,
+          subtitle: meta.title
+            ? `${String(meta.title)}: ${String(meta.status_change)}`
+            : String(meta.status_change),
+        };
+      }
       return {
-        title: `${actor} updated an assignment`,
-        subtitle: meta.status_change
-          ? String(meta.status_change)
-          : meta.title
-          ? String(meta.title)
-          : undefined,
+        title: `${actor} added a note`,
+        subtitle: meta.title
+          ? `"${String(meta.title)}"${meta.preview ? ` — ${String(meta.preview)}` : ""}`
+          : meta.preview ? String(meta.preview) : undefined,
       };
     default:
       return { title: "New notification" };
@@ -101,7 +107,7 @@ function getNotificationPath(n: AppNotification): string {
       return "/chat";
     case "new_assignment":
     case "assignment_update":
-      return "/assignments";
+      return n.entity_id ? `/assignments?open=${n.entity_id}` : "/assignments";
     default:
       return "/feed";
   }
