@@ -454,6 +454,7 @@ export default function AssignmentsView() {
   const [tab, setTab]                 = useState<"for_me" | "by_me">("for_me");
   const [createOpen, setCreateOpen]   = useState(false);
   const [detailId, setDetailId]       = useState<string | null>(null);
+  const deepLinkHandled               = useRef(false);
 
   const load = useCallback(async () => {
     if (!activeFamilyId) return;
@@ -473,12 +474,12 @@ export default function AssignmentsView() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Auto-open assignment from notification deep-link (?open=<id>)
+  // Auto-open assignment from notification deep-link (?open=<id>) — runs once only
   useEffect(() => {
     const openId = searchParams.get("open");
-    if (!openId || loading) return;
+    if (!openId || loading || deepLinkHandled.current) return;
+    deepLinkHandled.current = true;
     setDetailId(openId);
-    // Ensure the right tab is shown — check both tabs
     setTab((prev) => {
       const a = assignments.find((x) => x.id === openId);
       if (!a) return prev;
