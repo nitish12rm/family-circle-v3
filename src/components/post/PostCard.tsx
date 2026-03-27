@@ -9,15 +9,27 @@ import Spinner from "@/components/ui/Spinner";
 import { formatPostDate } from "@/lib/formatDate";
 import { compressImage } from "@/lib/imageCompression";
 import type { Post, PostComment } from "@/types";
+import { FEED_TAGS } from "@/types";
 
 const CONTENT_LIMIT = 180;
+
+const TAG_STYLE: Record<string, { bg: string; text: string; border: string }> = {
+  urgent:    { bg: "bg-red-500/15",     text: "text-red-400",     border: "border-red-500/30" },
+  traveling: { bg: "bg-blue-500/15",    text: "text-blue-400",    border: "border-blue-500/30" },
+  scenery:   { bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30" },
+  festival:  { bg: "bg-yellow-500/15",  text: "text-yellow-400",  border: "border-yellow-500/30" },
+  funny:     { bg: "bg-pink-500/15",    text: "text-pink-400",    border: "border-pink-500/30" },
+  food:      { bg: "bg-orange-500/15",  text: "text-orange-400",  border: "border-orange-500/30" },
+  milestone: { bg: "bg-purple-500/15",  text: "text-purple-400",  border: "border-purple-500/30" },
+  memory:    { bg: "bg-indigo-500/15",  text: "text-indigo-400",  border: "border-indigo-500/30" },
+};
 
 interface LikerProfile { id: string; name: string; avatar?: string }
 
 interface PostCardProps {
   post: Post;
   onDelete?: (postId: string) => void;
-  onEdit?: (postId: string, content: string, mediaUrls: string[]) => void;
+  onEdit?: (postId: string, content: string, mediaUrls: string[], tags: string[]) => void;
   navigable?: boolean;
   onLikeToggle?: (postId: string, liked: boolean, likeCount: number) => void;
 }
@@ -31,15 +43,12 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
   const [liking, setLiking] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
-  // Likers modal
   const [likersOpen, setLikersOpen] = useState(false);
   const [allLikers, setAllLikers] = useState<LikerProfile[]>([]);
   const [loadingLikers, setLoadingLikers] = useState(false);
 
-  // Post delete confirm
   const [deletePostOpen, setDeletePostOpen] = useState(false);
 
-  // Comments sheet
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<PostComment[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
@@ -49,13 +58,16 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
   const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
-  // Lightbox
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const lightboxTouchStart = useRef<number | null>(null);
 
-  // Edit post
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const carouselTouchStart = useRef<number | null>(null);
+
   const [editOpen, setEditOpen] = useState(false);
   const [editContent, setEditContent] = useState(post.content);
   const [editMediaUrls, setEditMediaUrls] = useState<string[]>(post.media_urls ?? []);
+  const [editTags, setEditTags] = useState<string[]>(post.tags ?? []);
   const [editUploading, setEditUploading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const editFileRef = useRef<HTMLInputElement>(null);
@@ -95,9 +107,7 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
       try {
         const data = await api.get<LikerProfile[]>(`/api/posts/${post.id}/likes`);
         setAllLikers(data);
-      } finally {
-        setLoadingLikers(false);
-      }
+      } finally { setLoadingLikers(false); }
     }
   };
 
@@ -109,9 +119,7 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
       try {
         const data = await api.get<PostComment[]>(`/api/posts/${post.id}/comments`);
         setComments(data);
-      } finally {
-        setLoadingComments(false);
-      }
+      } finally { setLoadingComments(false); }
     }
   };
 
@@ -125,9 +133,7 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
       setCommentCount((c) => c + 1);
       setCommentText("");
       setTimeout(() => commentsEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    } finally {
-      setSendingComment(false);
-    }
+    } finally { setSendingComment(false); }
   };
 
   const handleDeleteComment = async (commentId: string) => {
@@ -135,56 +141,42 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
       await api.delete(`/api/posts/${post.id}/comments?commentId=${commentId}`);
       setComments((prev) => prev.filter((c) => c.id !== commentId));
       setCommentCount((n) => Math.max(0, n - 1));
-    } catch {
-      // silent fail
-    } finally {
-      setDeleteCommentId(null);
-    }
+    } catch { /* silent */ } finally { setDeleteCommentId(null); }
   };
 
   const handleEditUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    const remaining = 4 - editMediaUrls.length;
-    const toProcess = files.slice(0, remaining);
-    // Reset immediately so same files can be reselected
+    const toProcess = files.slice(0, 4 - editMediaUrls.length);
     if (editFileRef.current) editFileRef.current.value = "";
     setEditUploading(true);
     try {
-      const urls = await Promise.all(
-        toProcess.map(async (file) => {
-          const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
-          const formData = new FormData();
-          formData.append("file", toUpload);
-          formData.append("folder", "family-circle-v3/posts");
-          const res = await api.upload<{ url: string }>("/api/upload", formData);
-          return res.url;
-        })
-      );
+      const urls = await Promise.all(toProcess.map(async (file) => {
+        const toUpload = file.type.startsWith("image/") ? await compressImage(file) : file;
+        const fd = new FormData();
+        fd.append("file", toUpload);
+        fd.append("folder", "family-circle-v3/posts");
+        return (await api.upload<{ url: string }>("/api/upload", fd)).url;
+      }));
       setEditMediaUrls((prev) => [...prev, ...urls]);
-    } finally {
-      setEditUploading(false);
-    }
+    } finally { setEditUploading(false); }
   };
 
   const handleSaveEdit = async () => {
     if (!editContent.trim() || editSaving) return;
     setEditSaving(true);
     try {
-      const updated = await api.patch<{ content: string; media_urls: string[] }>(
+      const updated = await api.patch<{ content: string; media_urls: string[]; tags: string[] }>(
         `/api/posts/${post.id}`,
-        { content: editContent.trim(), media_urls: editMediaUrls }
+        { content: editContent.trim(), media_urls: editMediaUrls, tags: editTags }
       );
-      onEdit?.(post.id, updated.content, updated.media_urls);
+      onEdit?.(post.id, updated.content, updated.media_urls, updated.tags ?? []);
       setEditOpen(false);
-    } catch {
-      // silent
-    } finally {
-      setEditSaving(false);
-    }
+    } catch { /* silent */ } finally { setEditSaving(false); }
   };
 
   const media = post.media_urls ?? [];
+  const tags = post.tags ?? [];
   const previewLikers = post.likers ?? [];
 
   return (
@@ -199,31 +191,20 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
             <Avatar src={post.author?.avatar} name={post.author?.name} size={36} />
           </button>
           <div className="flex-1 min-w-0">
-            <button
-              onClick={(e) => { e.stopPropagation(); router.push(`/profile/${post.author_id}`); }}
-              className="text-sm font-semibold text-text hover:text-accent transition-colors leading-tight"
-            >
+            <button onClick={(e) => { e.stopPropagation(); router.push(`/profile/${post.author_id}`); }} className="text-sm font-semibold text-text hover:text-accent transition-colors leading-tight">
               {post.author?.name ?? "Unknown"}
             </button>
-            <p className="text-xs text-text-faint mt-0.5">
-              {formatPostDate(post.created_at)}
-            </p>
+            <p className="text-xs text-text-faint mt-0.5">{formatPostDate(post.created_at)}</p>
           </div>
           {post.author_id === user?.id && (
             <div className="flex items-center gap-1">
               {onEdit && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setEditContent(post.content); setEditMediaUrls(post.media_urls ?? []); setEditOpen(true); }}
-                  className="p-1 text-text-faint hover:text-accent transition-colors"
-                >
+                <button onClick={(e) => { e.stopPropagation(); setEditContent(post.content); setEditMediaUrls(post.media_urls ?? []); setEditTags(post.tags ?? []); setEditOpen(true); }} className="p-1 text-text-faint hover:text-accent transition-colors">
                   <Pencil size={14} />
                 </button>
               )}
               {onDelete && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setDeletePostOpen(true); }}
-                  className="p-1 text-text-faint hover:text-error transition-colors"
-                >
+                <button onClick={(e) => { e.stopPropagation(); setDeletePostOpen(true); }} className="p-1 text-text-faint hover:text-error transition-colors">
                   <Trash2 size={15} />
                 </button>
               )}
@@ -231,55 +212,97 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
           )}
         </div>
 
-        {/* Content with see more/less */}
+        {/* Content */}
         <div className="px-4 pb-3" onClick={(e) => e.stopPropagation()}>
           <p className="text-sm text-text whitespace-pre-wrap leading-relaxed">{displayContent}</p>
           {isLong && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="text-xs text-accent font-medium mt-1 hover:text-accent-hover transition-colors"
-            >
+            <button onClick={() => setExpanded((v) => !v)} className="text-xs text-accent font-medium mt-1 hover:text-accent-hover transition-colors">
               {expanded ? "see less" : "see more"}
             </button>
           )}
         </div>
 
-        {/* Media — object-contain so full image is visible */}
-        {media.length > 0 && (
-          <div className={`grid gap-0.5 ${media.length === 1 ? "grid-cols-1" : "grid-cols-2"}`}>
-            {media.slice(0, 4).map((url, i) => (
-              <div
-                key={i}
-                className={`relative overflow-hidden bg-black ${media.length === 1 ? "aspect-[4/3]" : "aspect-square"} cursor-pointer`}
-                onClick={(e) => { e.stopPropagation(); setLightboxIndex(i); }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="w-full h-full object-contain" />
-                {i === 3 && media.length > 4 && (
-                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center pointer-events-none">
-                    <span className="text-white font-bold text-xl">+{media.length - 4}</span>
-                  </div>
-                )}
-                {navigable && i !== 3 && (
-                  <div className="absolute bottom-2 right-2 pointer-events-none">
-                    <span className="flex items-center gap-1 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm">
-                      <ExternalLink size={9} />
-                      View post
-                    </span>
-                  </div>
-                )}
-              </div>
-            ))}
+        {/* Tags */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-4 pb-3" onClick={(e) => e.stopPropagation()}>
+            {tags.map((tagId) => {
+              const def = FEED_TAGS.find((t) => t.id === tagId);
+              const s = TAG_STYLE[tagId] ?? { bg: "bg-bg-3", text: "text-text-muted", border: "border-border" };
+              return (
+                <span key={tagId} className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${s.bg} ${s.text} ${s.border}`}>
+                  {def ? `${def.emoji} ${def.label}` : tagId}
+                </span>
+              );
+            })}
           </div>
         )}
 
-        {/* Likers row — stacked avatars + name summary */}
-        {likeCount > 0 && (
-          <button
-            onClick={openLikers}
-            className="flex items-center gap-2 px-4 pt-3 pb-1 w-full text-left hover:opacity-80 transition-opacity"
+        {/* Single image */}
+        {media.length === 1 && (
+          <div className="relative overflow-hidden bg-black aspect-[4/3] cursor-pointer" onClick={(e) => { e.stopPropagation(); setLightboxIndex(0); }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={media[0]} alt="" className="w-full h-full object-contain" />
+            {navigable && (
+              <div className="absolute bottom-2 right-2 pointer-events-none">
+                <span className="flex items-center gap-1 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  <ExternalLink size={9} /> View post
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Multi-image carousel */}
+        {media.length > 1 && (
+          <div
+            className="relative overflow-hidden bg-black aspect-[4/3] cursor-pointer select-none"
+            onClick={(e) => { e.stopPropagation(); setLightboxIndex(carouselIndex); }}
+            onTouchStart={(e) => { carouselTouchStart.current = e.touches[0].clientX; }}
+            onTouchEnd={(e) => {
+              if (carouselTouchStart.current === null) return;
+              const diff = carouselTouchStart.current - e.changedTouches[0].clientX;
+              if (diff > 40 && carouselIndex < media.length - 1) setCarouselIndex((i) => i + 1);
+              else if (diff < -40 && carouselIndex > 0) setCarouselIndex((i) => i - 1);
+              carouselTouchStart.current = null;
+            }}
           >
-            {/* Stacked avatars */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={media[carouselIndex]} alt="" className="w-full h-full object-contain" />
+
+            {carouselIndex > 0 && (
+              <button className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 rounded-full p-1 z-10" onClick={(e) => { e.stopPropagation(); setCarouselIndex((i) => i - 1); }}>
+                <ChevronLeft size={16} className="text-white" />
+              </button>
+            )}
+            {carouselIndex < media.length - 1 && (
+              <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 rounded-full p-1 z-10" onClick={(e) => { e.stopPropagation(); setCarouselIndex((i) => i + 1); }}>
+                <ChevronRight size={16} className="text-white" />
+              </button>
+            )}
+
+            <div className="absolute top-2 left-2 bg-black/50 rounded-full px-2 py-0.5 pointer-events-none">
+              <span className="text-white text-[10px] font-medium">{carouselIndex + 1}/{media.length}</span>
+            </div>
+
+            <div className="absolute bottom-7 left-1/2 -translate-x-1/2 flex gap-1 pointer-events-none">
+              {media.map((_, i) => (
+                <div key={i} className={`w-1.5 h-1.5 rounded-full transition-all ${i === carouselIndex ? "bg-white scale-110" : "bg-white/40"}`} />
+              ))}
+            </div>
+
+            {navigable && (
+              <div className="absolute bottom-2 right-2 pointer-events-none">
+                <span className="flex items-center gap-1 bg-black/50 text-white text-[10px] px-2 py-0.5 rounded-full backdrop-blur-sm">
+                  <ExternalLink size={9} /> View post
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Likers row */}
+        {likeCount > 0 && (
+          <button onClick={openLikers} className="flex items-center gap-2 px-4 pt-3 pb-1 w-full text-left hover:opacity-80 transition-opacity">
             <div className="flex -space-x-2">
               {previewLikers.slice(0, 3).map((liker) => (
                 <div key={liker.id} className="w-5 h-5 rounded-full ring-2 ring-bg-2 overflow-hidden shrink-0">
@@ -287,7 +310,6 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
                 </div>
               ))}
             </div>
-            {/* Like summary text */}
             <span className="text-xs text-text-muted">
               {likeCount === 1
                 ? `Liked by ${previewLikers[0]?.name ?? "1 person"}`
@@ -298,109 +320,58 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
           </button>
         )}
 
-        {/* Actions row */}
+        {/* Actions */}
         <div className="flex items-center gap-1 px-3 py-2 border-t border-border/50 mt-2">
-          <button
-            onClick={handleLike}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-bg-3 transition-colors group flex-1 justify-center"
-          >
-            <Heart
-              size={17}
-              className={likedByMe ? "fill-red-500 text-red-500" : "text-text-faint group-hover:text-red-400 transition-colors"}
-              strokeWidth={likedByMe ? 0 : 2}
-            />
-            <span className={`text-xs font-medium ${likedByMe ? "text-red-500" : "text-text-faint"}`}>
-              Like{likeCount > 0 ? ` · ${likeCount}` : ""}
-            </span>
+          <button onClick={handleLike} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-bg-3 transition-colors group flex-1 justify-center">
+            <Heart size={17} className={likedByMe ? "fill-red-500 text-red-500" : "text-text-faint group-hover:text-red-400 transition-colors"} strokeWidth={likedByMe ? 0 : 2} />
+            <span className={`text-xs font-medium ${likedByMe ? "text-red-500" : "text-text-faint"}`}>Like{likeCount > 0 ? ` · ${likeCount}` : ""}</span>
           </button>
-          <button
-            onClick={openComments}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-bg-3 text-text-faint hover:text-text transition-colors flex-1 justify-center"
-          >
+          <button onClick={openComments} className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-bg-3 text-text-faint hover:text-text transition-colors flex-1 justify-center">
             <MessageCircle size={17} strokeWidth={2} />
-            <span className="text-xs font-medium">
-              Comment{commentCount > 0 ? ` · ${commentCount}` : ""}
-            </span>
+            <span className="text-xs font-medium">Comment{commentCount > 0 ? ` · ${commentCount}` : ""}</span>
           </button>
         </div>
       </div>
 
       {/* Comments sheet */}
       {commentsOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
-          onClick={() => setCommentsOpen(false)}
-        >
-          <div
-            className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden flex flex-col max-h-[80vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1 shrink-0">
-              <div className="w-10 h-1 bg-border rounded-full" />
-            </div>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setCommentsOpen(false)}>
+          <div className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center pt-3 pb-1 shrink-0"><div className="w-10 h-1 bg-border rounded-full" /></div>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
               <h2 className="text-sm font-semibold text-text">{commentCount} Comment{commentCount !== 1 ? "s" : ""}</h2>
-              <button onClick={() => setCommentsOpen(false)} className="p-1 text-text-faint hover:text-text">
-                <X size={16} />
-              </button>
+              <button onClick={() => setCommentsOpen(false)} className="p-1 text-text-faint hover:text-text"><X size={16} /></button>
             </div>
-
-            {/* Comments list */}
             <div className="overflow-y-auto flex-1 py-2">
-              {loadingComments ? (
-                <div className="flex justify-center py-8"><Spinner /></div>
-              ) : comments.length === 0 ? (
-                <p className="text-center text-text-muted text-sm py-8">No comments yet. Be the first!</p>
-              ) : (
-                comments.map((c) => (
+              {loadingComments ? <div className="flex justify-center py-8"><Spinner /></div>
+                : comments.length === 0 ? <p className="text-center text-text-muted text-sm py-8">No comments yet. Be the first!</p>
+                : comments.map((c) => (
                   <div key={c.id} className="flex items-start gap-3 px-5 py-3">
                     <button onClick={() => { setCommentsOpen(false); router.push(`/profile/${c.author_id}`); }}>
                       <Avatar src={c.author?.avatar} name={c.author?.name} size={36} />
                     </button>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-baseline gap-2">
-                        <button
-                          onClick={() => { setCommentsOpen(false); router.push(`/profile/${c.author_id}`); }}
-                          className="text-xs font-semibold text-text hover:text-accent transition-colors"
-                        >
+                        <button onClick={() => { setCommentsOpen(false); router.push(`/profile/${c.author_id}`); }} className="text-xs font-semibold text-text hover:text-accent transition-colors">
                           {c.author?.name ?? "Unknown"}
                         </button>
-                        <span className="text-[10px] text-text-faint">
-                          {formatPostDate(c.created_at)}
-                        </span>
+                        <span className="text-[10px] text-text-faint">{formatPostDate(c.created_at)}</span>
                       </div>
                       <p className="text-sm text-text mt-0.5 whitespace-pre-wrap leading-relaxed">{c.content}</p>
                     </div>
                     {c.author_id === user?.id && (
-                      <button
-                        onClick={() => setDeleteCommentId(c.id)}
-                        className="p-1.5 text-text-faint hover:text-error transition-colors shrink-0 mt-0.5"
-                      >
+                      <button onClick={() => setDeleteCommentId(c.id)} className="p-1.5 text-text-faint hover:text-error transition-colors shrink-0 mt-0.5">
                         <Trash2 size={13} />
                       </button>
                     )}
                   </div>
-                ))
-              )}
+                ))}
               <div ref={commentsEndRef} />
             </div>
-
-            {/* Pinned input */}
             <div className="shrink-0 border-t border-border px-4 py-3 flex items-center gap-3 pb-safe">
               <Avatar src={profile?.avatar} name={user?.name} size={32} />
-              <input
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(); } }}
-                placeholder="Add a comment…"
-                className="flex-1 bg-bg-2 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-faint outline-none border border-border focus:border-accent transition-colors"
-              />
-              <button
-                onClick={submitComment}
-                disabled={!commentText.trim() || sendingComment}
-                className="p-2 rounded-xl bg-accent text-white disabled:opacity-40 transition-opacity"
-              >
+              <input value={commentText} onChange={(e) => setCommentText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitComment(); } }} placeholder="Add a comment…" className="flex-1 bg-bg-2 rounded-xl px-3 py-2 text-sm text-text placeholder:text-text-faint outline-none border border-border focus:border-accent transition-colors" />
+              <button onClick={submitComment} disabled={!commentText.trim() || sendingComment} className="p-2 rounded-xl bg-accent text-white disabled:opacity-40 transition-opacity">
                 {sendingComment ? <Spinner size={16} /> : <Send size={16} />}
               </button>
             </div>
@@ -411,68 +382,38 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
 
       {/* Likers modal */}
       {likersOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
-          onClick={() => setLikersOpen(false)}
-        >
-          <div
-            className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 bg-border rounded-full" />
-            </div>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setLikersOpen(false)}>
+          <div className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-border rounded-full" /></div>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <h2 className="text-sm font-semibold text-text">{likeCount} Like{likeCount !== 1 ? "s" : ""}</h2>
-              <button onClick={() => setLikersOpen(false)} className="p-1 text-text-faint hover:text-text">
-                <X size={16} />
-              </button>
+              <button onClick={() => setLikersOpen(false)} className="p-1 text-text-faint hover:text-text"><X size={16} /></button>
             </div>
             <div className="overflow-y-auto max-h-72 py-2">
-              {loadingLikers ? (
-                <div className="flex justify-center py-8"><Spinner /></div>
-              ) : allLikers.length === 0 ? (
-                <p className="text-center text-text-muted text-sm py-8">No likes yet.</p>
-              ) : (
-                allLikers.map((liker) => (
-                  <button
-                    key={liker.id}
-                    onClick={() => { setLikersOpen(false); router.push(`/profile/${liker.id}`); }}
-                    className="w-full flex items-center gap-3 px-5 py-3 hover:bg-bg-2 transition-colors"
-                  >
+              {loadingLikers ? <div className="flex justify-center py-8"><Spinner /></div>
+                : allLikers.length === 0 ? <p className="text-center text-text-muted text-sm py-8">No likes yet.</p>
+                : allLikers.map((liker) => (
+                  <button key={liker.id} onClick={() => { setLikersOpen(false); router.push(`/profile/${liker.id}`); }} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-bg-2 transition-colors">
                     <Avatar src={liker.avatar} name={liker.name} size={40} />
                     <p className="text-sm font-medium text-text">{liker.name}</p>
                     <Heart size={14} className="ml-auto fill-red-500 text-red-500" strokeWidth={0} />
                   </button>
-                ))
-              )}
+                ))}
             </div>
-            {/* safe area bottom padding */}
             <div className="pb-6" />
           </div>
         </div>
       )}
 
-      {/* Delete post confirmation */}
+      {/* Delete post */}
       {deletePostOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6" onClick={() => setDeletePostOpen(false)}>
           <div className="bg-bg rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-text mb-1">Delete post?</h3>
             <p className="text-xs text-text-muted mb-4">This cannot be undone.</p>
             <div className="flex gap-2">
-              <button
-                onClick={() => setDeletePostOpen(false)}
-                className="flex-1 py-2 rounded-xl border border-border text-sm text-text-muted hover:bg-bg-2 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => { setDeletePostOpen(false); onDelete?.(post.id); }}
-                className="flex-1 py-2 rounded-xl bg-error text-white text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                Delete
-              </button>
+              <button onClick={() => setDeletePostOpen(false)} className="flex-1 py-2 rounded-xl border border-border text-sm text-text-muted hover:bg-bg-2 transition-colors">Cancel</button>
+              <button onClick={() => { setDeletePostOpen(false); onDelete?.(post.id); }} className="flex-1 py-2 rounded-xl bg-error text-white text-sm font-medium hover:opacity-90 transition-opacity">Delete</button>
             </div>
           </div>
         </div>
@@ -483,152 +424,99 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
         <div
           className="fixed inset-0 z-[60] bg-black/95 flex items-center justify-center"
           onClick={() => setLightboxIndex(null)}
+          onTouchStart={(e) => { lightboxTouchStart.current = e.touches[0].clientX; }}
+          onTouchEnd={(e) => {
+            if (lightboxTouchStart.current === null) return;
+            const diff = lightboxTouchStart.current - e.changedTouches[0].clientX;
+            if (diff > 50 && lightboxIndex < media.length - 1) setLightboxIndex((i) => (i ?? 0) + 1);
+            else if (diff < -50 && lightboxIndex > 0) setLightboxIndex((i) => (i ?? 1) - 1);
+            lightboxTouchStart.current = null;
+          }}
         >
-          {/* Close */}
-          <button
-            className="absolute top-4 right-4 p-2 text-white/80 hover:text-white z-10"
-            onClick={() => setLightboxIndex(null)}
-          >
-            <X size={22} />
-          </button>
-
-          {/* Prev */}
+          <button className="absolute top-4 right-4 p-2 text-white/80 hover:text-white z-10" onClick={() => setLightboxIndex(null)}><X size={22} /></button>
           {media.length > 1 && lightboxIndex > 0 && (
-            <button
-              className="absolute left-3 p-2 text-white/70 hover:text-white z-10"
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i ?? 1) - 1); }}
-            >
-              <ChevronLeft size={28} />
-            </button>
+            <button className="absolute left-3 p-2 text-white/70 hover:text-white z-10" onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i ?? 1) - 1); }}><ChevronLeft size={28} /></button>
           )}
-
-          {/* Image */}
           <div className="w-full h-full flex items-center justify-center px-12 py-16" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={media[lightboxIndex]}
-              alt=""
-              className="max-w-full max-h-full object-contain"
-            />
+            <img src={media[lightboxIndex]} alt="" className="max-w-full max-h-full object-contain" />
           </div>
-
-          {/* Next */}
           {media.length > 1 && lightboxIndex < media.length - 1 && (
-            <button
-              className="absolute right-3 p-2 text-white/70 hover:text-white z-10"
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i ?? 0) + 1); }}
-            >
-              <ChevronRight size={28} />
-            </button>
+            <button className="absolute right-3 p-2 text-white/70 hover:text-white z-10" onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i ?? 0) + 1); }}><ChevronRight size={28} /></button>
           )}
-
-          {/* View post button — only in feed (navigable) */}
+          {media.length > 1 && (
+            <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex gap-1.5 pointer-events-none">
+              {media.map((_, i) => <div key={i} className={`w-1.5 h-1.5 rounded-full ${i === lightboxIndex ? "bg-white" : "bg-white/30"}`} />)}
+            </div>
+          )}
           {navigable && (
-            <button
-              className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white text-xs font-medium px-4 py-2 rounded-full transition-colors z-10"
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); router.push(`/post/${post.id}`); }}
-            >
-              <ExternalLink size={12} />
-              View post
+            <button className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white text-xs font-medium px-4 py-2 rounded-full transition-colors z-10" onClick={(e) => { e.stopPropagation(); setLightboxIndex(null); router.push(`/post/${post.id}`); }}>
+              <ExternalLink size={12} /> View post
             </button>
           )}
         </div>
       )}
 
-      {/* Delete comment confirmation */}
+      {/* Delete comment */}
       {deleteCommentId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6" onClick={() => setDeleteCommentId(null)}>
           <div className="bg-bg rounded-2xl p-5 w-full max-w-xs" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-sm font-semibold text-text mb-1">Delete comment?</h3>
             <p className="text-xs text-text-muted mb-4">This cannot be undone.</p>
             <div className="flex gap-2">
-              <button
-                onClick={() => setDeleteCommentId(null)}
-                className="flex-1 py-2 rounded-xl border border-border text-sm text-text-muted hover:bg-bg-2 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDeleteComment(deleteCommentId)}
-                className="flex-1 py-2 rounded-xl bg-error text-white text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                Delete
-              </button>
+              <button onClick={() => setDeleteCommentId(null)} className="flex-1 py-2 rounded-xl border border-border text-sm text-text-muted hover:bg-bg-2 transition-colors">Cancel</button>
+              <button onClick={() => handleDeleteComment(deleteCommentId)} className="flex-1 py-2 rounded-xl bg-error text-white text-sm font-medium hover:opacity-90 transition-opacity">Delete</button>
             </div>
           </div>
         </div>
       )}
-      {/* Edit post sheet */}
+
+      {/* Edit post */}
       {editOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60" onClick={() => setEditOpen(false)}>
-          <div
-            className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden flex flex-col max-h-[90vh]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1 shrink-0">
-              <div className="w-10 h-1 bg-border rounded-full" />
-            </div>
+          <div className="bg-bg w-full max-w-xl rounded-t-3xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-center pt-3 pb-1 shrink-0"><div className="w-10 h-1 bg-border rounded-full" /></div>
             <div className="flex items-center justify-between px-5 py-3 border-b border-border shrink-0">
               <h2 className="text-sm font-semibold text-text">Edit Post</h2>
-              <button onClick={() => setEditOpen(false)} className="p-1 text-text-faint hover:text-text">
-                <X size={16} />
-              </button>
+              <button onClick={() => setEditOpen(false)} className="p-1 text-text-faint hover:text-text"><X size={16} /></button>
             </div>
-
             <div className="overflow-y-auto flex-1 px-5 py-4 flex flex-col gap-4">
-              {/* Text */}
-              <textarea
-                value={editContent}
-                onChange={(e) => setEditContent(e.target.value)}
-                rows={4}
-                className="w-full bg-bg-2 border border-border rounded-2xl px-4 py-3 text-sm text-text placeholder:text-text-faint outline-none focus:border-accent resize-none transition-colors"
-                placeholder="What's on your mind?"
-              />
-
-              {/* Current images */}
+              <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} rows={4} className="w-full bg-bg-2 border border-border rounded-2xl px-4 py-3 text-sm text-text placeholder:text-text-faint outline-none focus:border-accent resize-none transition-colors" placeholder="What's on your mind?" />
+              <div className="flex flex-col gap-2">
+                <span className="text-[11px] font-medium text-text-faint uppercase tracking-wide">Tags</span>
+                <div className="flex flex-wrap gap-2">
+                  {FEED_TAGS.map((tag) => {
+                    const active = editTags.includes(tag.id);
+                    const s = TAG_STYLE[tag.id];
+                    return (
+                      <button key={tag.id} onClick={() => setEditTags((prev) => active ? prev.filter((t) => t !== tag.id) : [...prev, tag.id])} className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-all ${active ? `${s.bg} ${s.text} ${s.border}` : "bg-bg-2 text-text-muted border-border"}`}>
+                        {tag.emoji} {tag.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               {editMediaUrls.length > 0 && (
                 <div className="grid grid-cols-2 gap-2">
                   {editMediaUrls.map((url, i) => (
                     <div key={i} className="relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={url} alt="" className="rounded-xl w-full h-28 object-contain bg-black" />
-                      <button
-                        onClick={() => setEditMediaUrls((prev) => prev.filter((_, j) => j !== i))}
-                        className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5"
-                      >
-                        <X size={12} className="text-white" />
-                      </button>
+                      <button onClick={() => setEditMediaUrls((prev) => prev.filter((_, j) => j !== i))} className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5"><X size={12} className="text-white" /></button>
                     </div>
                   ))}
                 </div>
               )}
-
-              {/* Add more photos */}
               {editMediaUrls.length < 4 && (
                 <label className="flex items-center gap-2 text-sm text-text-muted hover:text-text cursor-pointer transition-colors w-fit">
                   {editUploading ? <Spinner size={16} /> : <ImagePlus size={16} />}
                   <span>{editUploading ? "Uploading…" : `Add photo (${editMediaUrls.length}/4)`}</span>
-                  <input
-                    ref={editFileRef}
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={handleEditUpload}
-                    disabled={editUploading}
-                  />
+                  <input ref={editFileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleEditUpload} disabled={editUploading} />
                 </label>
               )}
             </div>
-
-            {/* Save */}
             <div className="shrink-0 border-t border-border px-5 py-4">
-              <button
-                onClick={handleSaveEdit}
-                disabled={!editContent.trim() || editSaving || editUploading}
-                className="w-full py-3 rounded-2xl bg-accent text-white text-sm font-semibold disabled:opacity-40 transition-opacity flex items-center justify-center gap-2"
-              >
+              <button onClick={handleSaveEdit} disabled={!editContent.trim() || editSaving || editUploading} className="w-full py-3 rounded-2xl bg-accent text-white text-sm font-semibold disabled:opacity-40 transition-opacity flex items-center justify-center gap-2">
                 {editSaving ? <Spinner size={16} /> : <Pencil size={15} />}
                 Save changes
               </button>

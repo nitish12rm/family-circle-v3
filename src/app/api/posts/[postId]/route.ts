@@ -32,6 +32,7 @@ export async function GET(
       author_id: post.author_id,
       content: post.content,
       media_urls: Array.isArray(post.media_urls) ? post.media_urls : [],
+      tags: Array.isArray(post.tags) ? post.tags : [],
       created_at: post.created_at,
       like_count: likeCount,
       comment_count: commentCount,
@@ -51,7 +52,7 @@ export async function PATCH(
     const { userId } = requireAuth(req);
     await connectDB();
     const { postId } = await params;
-    const { content, media_urls } = await req.json();
+    const { content, media_urls, tags } = await req.json();
 
     const post = await Post.findById(postId);
     if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -65,6 +66,7 @@ export async function PATCH(
 
     if (content !== undefined) post.content = content.trim();
     if (media_urls !== undefined) post.media_urls = media_urls;
+    if (tags !== undefined) post.tags = Array.isArray(tags) ? tags : [];
     post.updated_at = new Date();
     await post.save();
 
@@ -72,6 +74,7 @@ export async function PATCH(
       id: post._id,
       content: post.content,
       media_urls: post.media_urls,
+      tags: post.tags,
       updated_at: post.updated_at,
     });
   } catch {
