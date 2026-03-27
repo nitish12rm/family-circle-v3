@@ -63,15 +63,15 @@ function AssignmentCard({ a, currentUserId, onClick }: {
       className="w-full text-left bg-bg-2 border border-border rounded-2xl p-4 flex flex-col gap-3 hover:border-accent/30 transition-colors active:scale-[0.99]"
     >
       {/* Assigner → Assignee */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1.5">
-          <Avatar src={a.assigner?.avatar} name={a.assigner?.name} size={24} />
-          <span className="text-xs text-text-muted font-medium">{a.assigner?.name ?? "?"}</span>
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0 shrink">
+          <Avatar src={a.assigner?.avatar} name={a.assigner?.name} size={22} />
+          <span className="text-xs text-text-muted font-medium truncate max-w-[80px]">{a.assigner?.name ?? "?"}</span>
         </div>
-        <ArrowRight size={12} className="text-text-faint shrink-0" />
-        <div className="flex items-center gap-1.5">
-          <Avatar src={a.assignee?.avatar} name={a.assignee?.name} size={24} />
-          <span className="text-xs text-text-muted font-medium">{a.assignee?.name ?? "?"}</span>
+        <ArrowRight size={11} className="text-text-faint shrink-0" />
+        <div className="flex items-center gap-1.5 min-w-0 shrink">
+          <Avatar src={a.assignee?.avatar} name={a.assignee?.name} size={22} />
+          <span className="text-xs text-text-muted font-medium truncate max-w-[80px]">{a.assignee?.name ?? "?"}</span>
         </div>
         <div className="ml-auto shrink-0">
           <StatusChip status={a.status} size="xs" />
@@ -123,6 +123,12 @@ function AssignmentDetail({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const updateInputRef = useRef<HTMLInputElement>(null);
+  const updatesEndRef  = useRef<HTMLDivElement>(null);
+
+  // Scroll updates to bottom when new ones arrive
+  useEffect(() => {
+    updatesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [a.updates.length]);
 
   const isAssigner = a.assigner_id === currentUserId;
   const isAssignee = a.assignee_id === currentUserId;
@@ -189,21 +195,19 @@ function AssignmentDetail({
     <div className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1">
 
       {/* Assigner → Assignee hero */}
-      <div className="flex items-center justify-center gap-4 py-2">
-        <div className="flex flex-col items-center gap-1.5">
+      <div className="flex items-center justify-center gap-3 py-2">
+        <div className="flex flex-col items-center gap-1.5 max-w-[90px]">
           <Avatar src={a.assigner?.avatar} name={a.assigner?.name} size={44} />
-          <span className="text-[11px] text-text-muted font-medium">{a.assigner?.name ?? "?"}</span>
+          <span className="text-[11px] text-text-muted font-medium text-center truncate w-full">{a.assigner?.name ?? "?"}</span>
           <span className="text-[9px] text-text-faint">assigner</span>
         </div>
-        <div className="flex flex-col items-center gap-1">
-          <div className="flex items-center gap-0.5">
-            <div className="w-6 h-px bg-border" />
-            <ArrowRight size={14} className="text-accent" />
-          </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <div className="w-5 h-px bg-border" />
+          <ArrowRight size={14} className="text-accent" />
         </div>
-        <div className="flex flex-col items-center gap-1.5">
+        <div className="flex flex-col items-center gap-1.5 max-w-[90px]">
           <Avatar src={a.assignee?.avatar} name={a.assignee?.name} size={44} />
-          <span className="text-[11px] text-text-muted font-medium">{a.assignee?.name ?? "?"}</span>
+          <span className="text-[11px] text-text-muted font-medium text-center truncate w-full">{a.assignee?.name ?? "?"}</span>
           <span className="text-[9px] text-text-faint">assignee</span>
         </div>
       </div>
@@ -290,7 +294,7 @@ function AssignmentDetail({
           <p className="text-xs text-text-faint py-2">No updates yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {[...a.updates].reverse().map((u) => (
+            {a.updates.map((u) => (
               <div key={u.id} className="flex gap-2.5">
                 <Avatar src={u.author?.avatar} name={u.author?.name} size={24} />
                 <div className="flex-1 bg-bg-2 border border-border rounded-xl px-3 py-2">
@@ -304,6 +308,7 @@ function AssignmentDetail({
                 </div>
               </div>
             ))}
+            <div ref={updatesEndRef} />
           </div>
         )}
 
@@ -519,10 +524,10 @@ export default function AssignmentsView() {
       <div className="flex gap-1 bg-bg-2 border border-border rounded-2xl p-1">
         {([["for_me", "For Me", forMe], ["by_me", "By Me", byMe]] as const).map(([id, label, list]) => (
           <button key={id} onClick={() => setTab(id)}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium transition-colors ${tab === id ? "bg-bg-1 text-text shadow-sm" : "text-text-muted hover:text-text"}`}>
-            {label}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${tab === id ? "bg-bg-1 text-text shadow-sm" : "text-text-muted hover:text-text"}`}>
+            <span className="shrink-0">{label}</span>
             {list.length > 0 && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${tab === id ? "bg-accent/15 text-accent" : "bg-bg text-text-faint"}`}>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold shrink-0 ${tab === id ? "bg-accent/15 text-accent" : "bg-bg text-text-faint"}`}>
                 {list.length}
               </span>
             )}

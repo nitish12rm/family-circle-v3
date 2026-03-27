@@ -22,14 +22,14 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 p-0">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-md bg-bg-2 border border-border rounded-2xl shadow-card animate-slide-up">
+      <div className="relative w-full sm:max-w-md bg-bg-2 border border-border sm:rounded-2xl rounded-t-2xl shadow-card animate-slide-up flex flex-col max-h-[92dvh]">
         {title && (
-          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
             <h2 className="font-semibold text-text">{title}</h2>
             <button
               onClick={onClose}
@@ -39,7 +39,7 @@ export default function Modal({ open, onClose, title, children }: ModalProps) {
             </button>
           </div>
         )}
-        <div className="p-5">{children}</div>
+        <div className="p-5 overflow-y-auto flex-1">{children}</div>
       </div>
     </div>
   );

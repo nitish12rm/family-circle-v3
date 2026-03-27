@@ -67,7 +67,7 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
             <div className="relative">
               <button
                 onClick={() => setFamilyMenuOpen((v) => !v)}
-                className="flex items-center gap-1.5 bg-bg-2 border border-border rounded-full px-3 py-1.5 text-xs font-semibold text-text hover:border-accent/60 transition-colors max-w-[180px]"
+                className="flex items-center gap-1.5 bg-bg-2 border border-border rounded-full px-3 py-1.5 text-xs font-semibold text-text hover:border-accent/60 transition-colors max-w-[140px] sm:max-w-[200px]"
               >
                 <span className="truncate">{activeFamily?.name ?? "Select Family"}</span>
                 <ChevronDown
@@ -79,7 +79,7 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
               {familyMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setFamilyMenuOpen(false)} />
-                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-bg-2 border border-border rounded-xl shadow-card py-1 min-w-[200px] z-50">
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 bg-bg-2 border border-border rounded-xl shadow-card py-1 min-w-[180px] w-[min(260px,80vw)] z-50">
                     <p className="px-4 pt-1 pb-2 text-[10px] font-semibold text-text-faint uppercase tracking-wider">Your Families</p>
                     {families.map((f) => {
                       const isActive = f.id === activeFamilyId;

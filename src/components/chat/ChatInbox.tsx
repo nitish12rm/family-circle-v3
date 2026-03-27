@@ -144,6 +144,8 @@ export default function ChatInbox() {
               sorted.map((member) => {
                 const conv = convMap.get(member.user_id);
                 const hasUnread = (conv?.unread ?? 0) > 0;
+                const lastSeen = (member.profile as { last_seen?: string | null } | undefined)?.last_seen;
+                const online = lastSeen ? Date.now() - new Date(lastSeen).getTime() < 3 * 60 * 1000 : false;
                 return (
                   <button
                     key={member.id}
@@ -152,9 +154,12 @@ export default function ChatInbox() {
                   >
                     <div className="relative shrink-0">
                       <Avatar src={member.profile?.avatar} name={member.profile?.name} size={48} />
+                      {online && !hasUnread && (
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-bg-1" />
+                      )}
                       {hasUnread && (
                         <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1">
-                          {(conv!.unread) > 99 ? "99+" : conv!.unread}
+                          {conv!.unread > 99 ? "99+" : conv!.unread}
                         </span>
                       )}
                     </div>
@@ -169,9 +174,11 @@ export default function ChatInbox() {
                           </span>
                         )}
                       </div>
-                      <p className={`text-xs mt-0.5 truncate ${hasUnread ? "text-text font-medium" : "text-text-muted"}`}>
+                      <p className={`text-xs mt-0.5 truncate ${hasUnread ? "text-text font-medium" : online ? "text-green-500 font-medium" : "text-text-muted"}`}>
                         {conv
                           ? `${conv.isMe ? "You: " : ""}${conv.lastMessage}`
+                          : online
+                          ? "Online"
                           : <span className="text-text-faint italic">Tap to message</span>}
                       </p>
                     </div>

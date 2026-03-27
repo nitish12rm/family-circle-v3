@@ -118,11 +118,15 @@ export default function FeedView() {
       } else if (filterDate === "month") {
         if (postDate < new Date(now.getTime() - 30 * 86400000)) return false;
       } else if (filterDate === "custom") {
-        if (filterCustomFrom && postDate < new Date(filterCustomFrom)) return false;
-        if (filterCustomTo) {
-          const toEnd = new Date(filterCustomTo);
-          toEnd.setHours(23, 59, 59, 999);
-          if (postDate > toEnd) return false;
+        // Skip filter if dates are invalid (from > to)
+        const rangeValid = !(filterCustomFrom && filterCustomTo && filterCustomFrom > filterCustomTo);
+        if (rangeValid) {
+          if (filterCustomFrom && postDate < new Date(filterCustomFrom)) return false;
+          if (filterCustomTo) {
+            const toEnd = new Date(filterCustomTo);
+            toEnd.setHours(23, 59, 59, 999);
+            if (postDate > toEnd) return false;
+          }
         }
       }
     }
@@ -272,45 +276,43 @@ export default function FeedView() {
           {/* Date filter */}
           <div className="flex flex-col gap-1.5">
             <span className="text-[10px] font-medium text-text-faint uppercase tracking-wide px-0.5">Time</span>
-            <div className="flex gap-1.5 flex-wrap">
-              {(["today", "week", "month"] as const).map((d) => (
+            <div className="grid grid-cols-2 gap-1.5">
+              {(["today", "week", "month", "custom"] as const).map((d) => (
                 <button
                   key={d}
                   onClick={() => setFilterDate(filterDate === d ? "" : d)}
-                  className={`flex-1 min-w-[72px] py-1.5 rounded-xl border text-xs font-medium transition-colors ${filterDate === d ? "border-accent bg-accent/10 text-accent" : "border-border bg-bg text-text-muted"}`}
+                  className={`py-2 rounded-xl border text-xs font-medium transition-colors ${filterDate === d ? "border-accent bg-accent/10 text-accent" : "border-border bg-bg text-text-muted"}`}
                 >
-                  {d === "today" ? "Today" : d === "week" ? "This week" : "This month"}
+                  {d === "today" ? "Today" : d === "week" ? "This week" : d === "month" ? "This month" : "Custom"}
                 </button>
               ))}
-              <button
-                onClick={() => setFilterDate(filterDate === "custom" ? "" : "custom")}
-                className={`flex-1 min-w-[72px] py-1.5 rounded-xl border text-xs font-medium transition-colors ${filterDate === "custom" ? "border-accent bg-accent/10 text-accent" : "border-border bg-bg text-text-muted"}`}
-              >
-                Custom
-              </button>
             </div>
             {filterDate === "custom" && (
-              <div className="flex gap-2 mt-1">
-                <div className="flex-1 flex flex-col gap-0.5">
-                  <label className="text-[10px] text-text-faint px-0.5">From</label>
+              <div className="flex flex-col gap-2 mt-1 bg-bg rounded-xl border border-border p-2.5">
+                <p className="text-[10px] text-text-faint">Select a start and/or end date to filter posts.</p>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-medium text-text-muted px-0.5">From date</label>
                   <input
                     type="date"
                     value={filterCustomFrom}
                     max={filterCustomTo || undefined}
                     onChange={(e) => setFilterCustomFrom(e.target.value)}
-                    className="w-full bg-bg border border-border rounded-xl px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent"
+                    className="w-full bg-bg-2 border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent transition-colors"
                   />
                 </div>
-                <div className="flex-1 flex flex-col gap-0.5">
-                  <label className="text-[10px] text-text-faint px-0.5">To</label>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10px] font-medium text-text-muted px-0.5">To date</label>
                   <input
                     type="date"
                     value={filterCustomTo}
                     min={filterCustomFrom || undefined}
                     onChange={(e) => setFilterCustomTo(e.target.value)}
-                    className="w-full bg-bg border border-border rounded-xl px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent"
+                    className="w-full bg-bg-2 border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent transition-colors"
                   />
                 </div>
+                {filterCustomFrom && filterCustomTo && filterCustomFrom > filterCustomTo && (
+                  <p className="text-[11px] text-red-400 px-0.5">Start date must be before end date.</p>
+                )}
               </div>
             )}
           </div>

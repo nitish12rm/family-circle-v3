@@ -18,7 +18,7 @@ export async function GET(
     const { userId } = await params;
 
     const profile = await Profile.findById(userId)
-      .select("name avatar status dob education goals gender created_at")
+      .select("name avatar status dob education goals gender created_at last_seen")
       .lean() as Record<string, unknown> | null;
     if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -78,6 +78,7 @@ export async function GET(
         goals: profile.goals,
         gender: profile.gender,
         created_at: profile.created_at,
+        last_seen: profile.last_seen ?? null,
       },
       posts: posts.map((p) => ({
         id: p._id,
