@@ -159,7 +159,7 @@ function AssignmentDetail({
     if (!editTitle.trim()) return;
     setSaving(true);
     try {
-      const res = await api.patch(`/api/assignments/${a.id}`, {
+      const res = await api.patch<Partial<Assignment>>(`/api/assignments/${a.id}`, {
         title: editTitle.trim(),
         description: editDesc.trim(),
         deadline: editDeadline || null,
