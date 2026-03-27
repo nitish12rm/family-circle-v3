@@ -22,24 +22,49 @@ interface OtherProfile {
   id: string;
   name: string;
   avatar?: string;
+  last_seen?: string | null;
+}
+
+function isOnline(lastSeen?: string | null) {
+  if (!lastSeen) return false;
+  return Date.now() - new Date(lastSeen).getTime() < 3 * 60 * 1000;
+}
+
+function formatLastSeen(lastSeen?: string | null): string {
+  if (!lastSeen) return "Direct message";
+  if (isOnline(lastSeen)) return "Online";
+  const diff = Date.now() - new Date(lastSeen).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2)  return "Just now";
+  if (mins < 60) return `Last seen ${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `Last seen ${hrs}h ago`;
+  return `Last seen ${Math.floor(hrs / 24)}d ago`;
 }
 
 export default function DMChatView({ userId }: { userId: string }) {
   const { user } = useAuthStore();
   const router = useRouter();
-  const [messages, setMessages] = useState<DMMessage[]>([]);
-  const [other, setOther] = useState<OtherProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [content, setContent] = useState("");
-  const [sending, setSending] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const lastTimestampRef = useRef<string | null>(null);
+  const [messages, setMessages]   = useState<DMMessage[]>([]);
+  const [other, setOther]         = useState<OtherProfile | null>(null);
+  const [loading, setLoading]     = useState(true);
+  const [content, setContent]     = useState("");
+  const [sending, setSending]     = useState(false);
+  const bottomRef              = useRef<HTMLDivElement>(null);
+  const lastTimestampRef       = useRef<string | null>(null);
 
-  useEffect(() => {
+  // Fetch (and re-fetch) the other user's profile for online status
+  const fetchProfile = useCallback(() => {
     api.get<{ profile: OtherProfile }>(`/api/profiles/${userId}`)
       .then((d) => setOther(d.profile))
       .catch(() => {});
   }, [userId]);
+
+  useEffect(() => {
+    fetchProfile();
+    const t = setInterval(fetchProfile, 15_000);
+    return () => clearInterval(t);
+  }, [fetchProfile]);
 
   const markRead = useCallback(() => {
     api.post(`/api/dm/${userId}/read`, {}).catch(() => {});
@@ -57,7 +82,6 @@ export default function DMChatView({ userId }: { userId: string }) {
           setMessages((prev) => {
             const seen = new Set(prev.map((m) => m.id));
             const fresh = data.filter((m) => !seen.has(m.id));
-            // Also update read_by on existing messages
             const updatedById = Object.fromEntries(data.map((m) => [m.id, m]));
             const merged = prev.map((m) => updatedById[m.id] ? { ...m, read_by: updatedById[m.id].read_by } : m);
             return fresh.length ? [...merged, ...fresh] : merged;
@@ -86,7 +110,6 @@ export default function DMChatView({ userId }: { userId: string }) {
     finally { setSending(false); }
   };
 
-  // Find the last message I sent that has been read by the other user
   const lastReadByOtherIdx = (() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
@@ -95,6 +118,9 @@ export default function DMChatView({ userId }: { userId: string }) {
     return -1;
   })();
 
+  const online = isOnline(other?.last_seen);
+  const statusText = formatLastSeen(other?.last_seen);
+
   return (
     <div className="flex flex-col max-w-xl mx-auto" style={{ height: "var(--content-h)" }}>
       {/* Header */}
@@ -102,14 +128,19 @@ export default function DMChatView({ userId }: { userId: string }) {
         <button onClick={() => router.push("/chat")} className="p-1.5 rounded-lg hover:bg-bg-2 text-text-muted hover:text-text transition-colors">
           <ArrowLeft size={18} />
         </button>
-        <button onClick={() => router.push(`/profile/${userId}`)} className="shrink-0">
+        <button onClick={() => router.push(`/profile/${userId}`)} className="relative shrink-0">
           <Avatar src={other?.avatar} name={other?.name ?? ""} size={32} />
+          {online && (
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-bg-1" />
+          )}
         </button>
         <div className="flex-1 min-w-0">
-          <button onClick={() => router.push(`/profile/${userId}`)} className="text-sm font-semibold text-text truncate hover:text-accent transition-colors">
+          <button onClick={() => router.push(`/profile/${userId}`)} className="text-sm font-semibold text-text truncate hover:text-accent transition-colors block">
             {other?.name ?? "..."}
           </button>
-          <p className="text-xs text-text-faint">Direct message</p>
+          <p className={`text-xs ${online ? "text-green-500 font-medium" : "text-text-faint"}`}>
+            {statusText}
+          </p>
         </div>
       </div>
 
@@ -118,13 +149,17 @@ export default function DMChatView({ userId }: { userId: string }) {
         {loading ? <div className="flex justify-center py-10"><Spinner /></div>
           : messages.length === 0 ? (
             <div className="text-center py-20">
-              <button onClick={() => router.push(`/profile/${userId}`)} className="block mx-auto mb-3">
+              <button onClick={() => router.push(`/profile/${userId}`)} className="block mx-auto mb-3 relative">
                 <Avatar src={other?.avatar} name={other?.name ?? ""} size={56} />
+                {online && (
+                  <span className="absolute bottom-0.5 right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-bg" />
+                )}
               </button>
               <button onClick={() => router.push(`/profile/${userId}`)} className="text-sm font-medium text-text hover:text-accent transition-colors">
                 {other?.name}
               </button>
-              <p className="text-xs text-text-muted mt-1">Send a message to start the conversation.</p>
+              <p className={`text-xs mt-0.5 ${online ? "text-green-500 font-medium" : "text-text-muted"}`}>{statusText}</p>
+              <p className="text-xs text-text-muted mt-2">Send a message to start the conversation.</p>
             </div>
           ) : messages.map((msg, idx) => {
             const isMe = msg.sender_id === user?.id;
@@ -140,7 +175,6 @@ export default function DMChatView({ userId }: { userId: string }) {
                     <span className="text-[10px] text-text-faint mt-1 mx-1">{formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}</span>
                   </div>
                 </div>
-                {/* Seen receipt — shown under the last message the other person has read */}
                 {showReceipt && (
                   <div className="flex items-center gap-1 mt-0.5 mr-1">
                     <Avatar src={other?.avatar} name={other?.name ?? ""} size={14} />

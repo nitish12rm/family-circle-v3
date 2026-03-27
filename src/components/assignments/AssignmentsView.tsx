@@ -123,6 +123,12 @@ function AssignmentDetail({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const updateInputRef = useRef<HTMLInputElement>(null);
+  const updatesEndRef  = useRef<HTMLDivElement>(null);
+
+  // Scroll updates to bottom when new ones arrive
+  useEffect(() => {
+    updatesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [a.updates.length]);
 
   const isAssigner = a.assigner_id === currentUserId;
   const isAssignee = a.assignee_id === currentUserId;
@@ -288,7 +294,7 @@ function AssignmentDetail({
           <p className="text-xs text-text-faint py-2">No updates yet.</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {[...a.updates].reverse().map((u) => (
+            {a.updates.map((u) => (
               <div key={u.id} className="flex gap-2.5">
                 <Avatar src={u.author?.avatar} name={u.author?.name} size={24} />
                 <div className="flex-1 bg-bg-2 border border-border rounded-xl px-3 py-2">
@@ -302,6 +308,7 @@ function AssignmentDetail({
                 </div>
               </div>
             ))}
+            <div ref={updatesEndRef} />
           </div>
         )}
 
