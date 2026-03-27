@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Home, GitBranch, MessageCircle, User, Plus, PenLine, CheckSquare } from "lucide-react";
+import { Home, GitBranch, MessageCircle, User, Plus, PenLine, CheckSquare, ClipboardList } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -17,8 +17,9 @@ const rightTabs = [
 ];
 
 const fabItems = [
-  { id: "todo", label: "To-Do", icon: CheckSquare, iconBg: "bg-purple-500/15 text-purple-400", border: "border-purple-500/25" },
-  { id: "post", label: "Post",  icon: PenLine,     iconBg: "bg-accent/15 text-accent",         border: "border-accent/25" },
+  { id: "assign", label: "Assign",  icon: ClipboardList, iconBg: "bg-sky-500/15 text-sky-400",       border: "border-sky-500/25" },
+  { id: "todo",   label: "To-Do",   icon: CheckSquare,   iconBg: "bg-purple-500/15 text-purple-400", border: "border-purple-500/25" },
+  { id: "post",   label: "Post",    icon: PenLine,       iconBg: "bg-accent/15 text-accent",         border: "border-accent/25" },
 ];
 
 export default function BottomNav() {
@@ -69,6 +70,8 @@ export default function BottomNav() {
       }
     } else if (id === "todo") {
       router.push("/todos?new=1");
+    } else if (id === "assign") {
+      router.push("/assignments?new=1");
     }
   };
 
