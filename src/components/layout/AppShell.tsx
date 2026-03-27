@@ -66,28 +66,29 @@ export default function AppShell({ children }: { children: ReactNode }) {
     if (!token) return;
     (async () => {
       try {
-        if (typeof window === "undefined" || !("Notification" in window)) return;
+        if (typeof window === "undefined" || !("Notification" in window)) { console.log("[FCM] no Notification API"); return; }
         const permission = await Notification.requestPermission();
+        console.log("[FCM] permission:", permission);
         if (permission !== "granted") return;
 
         const { getFirebaseMessaging } = await import("@/lib/firebase");
         const { getToken } = await import("firebase/messaging");
         const messaging = await getFirebaseMessaging();
+        console.log("[FCM] messaging:", messaging);
         if (!messaging) return;
 
-        // Register Firebase SW at a dedicated scope so it doesn't clash with next-pwa
-        const swReg = await navigator.serviceWorker.register(
-          "/api/firebase-messaging-sw"
-        );
+        const swReg = await navigator.serviceWorker.register("/api/firebase-messaging-sw");
+        console.log("[FCM] swReg:", swReg.scope);
 
         const fcmToken = await getToken(messaging, {
           vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
           serviceWorkerRegistration: swReg,
         });
+        console.log("[FCM] token:", fcmToken);
         if (fcmToken) {
           api.post("/api/profile/fcm-token", { token: fcmToken }).catch(() => {});
         }
-      } catch { /* permission denied or FCM not configured — silent */ }
+      } catch (e) { console.error("[FCM] error:", e); }
     })();
   }, [token]);
 
