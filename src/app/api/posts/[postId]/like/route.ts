@@ -24,7 +24,7 @@ export async function POST(
       Post.findById(postId).select("author_id").lean().then((post) => {
         if (!post) return;
         return createNotification({
-          recipientIds: [(post as { author_id: string }).author_id],
+          recipientIds: [(post as unknown as { author_id: string }).author_id],
           actorId: userId,
           type: "post_like",
           entityId: postId,
