@@ -4,6 +4,7 @@ import { requireAuth } from "@/lib/auth";
 import { Assignment } from "@/models/Assignment";
 import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
+import { createNotification } from "@/lib/createNotification";
 
 type ProfileLean = { _id: string; name: string; avatar?: string };
 
@@ -97,6 +98,16 @@ export async function POST(
     const profiles = await Profile.find({ _id: { $in: [userId, assignee_id] } })
       .select("_id name avatar").lean() as unknown as ProfileLean[];
     const profileMap = Object.fromEntries(profiles.map((p) => [p._id, p]));
+
+    // Fire-and-forget: notify assignee of new assignment
+    createNotification({
+      recipientIds: [assignee_id],
+      actorId: userId,
+      type: "new_assignment",
+      entityId: a._id as string,
+      familyId,
+      meta: { title: title.trim() },
+    }).catch(() => {});
 
     return NextResponse.json(shape(a.toObject() as Record<string, unknown>, profileMap));
   } catch {

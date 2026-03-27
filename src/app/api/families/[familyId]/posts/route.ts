@@ -5,8 +5,10 @@ import { Post } from "@/models/Post";
 import { Profile } from "@/models/Profile";
 import { Like } from "@/models/Like";
 import { Comment } from "@/models/Comment";
+import { FamilyMember } from "@/models/FamilyMember";
 import { randomUUID } from "crypto";
 import { deleteAllFromCloudinary } from "@/lib/cloudinaryDelete";
+import { createNotification } from "@/lib/createNotification";
 
 export async function GET(
   req: NextRequest,
@@ -132,6 +134,23 @@ export async function POST(
     const author = await Profile.findById(userId)
       .select("_id name avatar")
       .lean() as Record<string, unknown> | null;
+
+    // Fire-and-forget: notify all family members of the new post
+    FamilyMember.find({ family_id: familyId })
+      .select("user_id")
+      .lean()
+      .then((members) => {
+        const recipientIds = (members as { user_id: string }[]).map((m) => m.user_id);
+        return createNotification({
+          recipientIds,
+          actorId: userId,
+          type: "new_post",
+          entityId: post._id as string,
+          familyId,
+          meta: { post_preview: content.trim().slice(0, 80) },
+        });
+      })
+      .catch(() => {});
 
     return NextResponse.json({
       id: post._id,

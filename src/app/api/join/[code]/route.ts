@@ -5,6 +5,7 @@ import { FamilyInvite } from "@/models/FamilyInvite";
 import { FamilyMember } from "@/models/FamilyMember";
 import { Family } from "@/models/Family";
 import { randomUUID } from "crypto";
+import { createNotification } from "@/lib/createNotification";
 
 export async function GET(
   _req: NextRequest,
@@ -61,6 +62,23 @@ export async function POST(
     });
 
     const family = await Family.findById(invite.family_id).lean() as Record<string, unknown> | null;
+
+    // Fire-and-forget: notify existing family members of new member
+    FamilyMember.find({ family_id: invite.family_id })
+      .select("user_id")
+      .lean()
+      .then((members) => {
+        const recipientIds = (members as { user_id: string }[]).map((m) => m.user_id);
+        return createNotification({
+          recipientIds,
+          actorId: userId,
+          type: "new_member",
+          familyId: invite.family_id as string,
+          meta: { family_name: family ? String(family.name) : "" },
+        });
+      })
+      .catch(() => {});
+
     return NextResponse.json({ family: family ? { id: family._id, name: family.name } : null });
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

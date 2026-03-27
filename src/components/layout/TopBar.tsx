@@ -3,21 +3,25 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown, Check, Settings, LogOut, User, FileText,
-  Users, Trash2, X, Plus,
+  Users, Trash2, X, Plus, Bell,
 } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
+import { useNotificationStore } from "@/store/notificationStore";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
 import Spinner from "@/components/ui/Spinner";
 import AppLogo from "@/components/ui/AppLogo";
 import { useUIStore } from "@/store/uiStore";
+import NotificationPanel from "@/components/notifications/NotificationPanel";
 import type { Profile } from "@/types";
 
 export default function TopBar({ profile }: { profile: Profile | null }) {
   const router = useRouter();
   const [familyMenuOpen, setFamilyMenuOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifTab, setNotifTab] = useState<"feed" | "chat" | "tasks">("feed");
 
   // Delete account state
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -27,6 +31,7 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
   const { families, activeFamilyId, setActiveFamily } = useFamilyStore();
   const { clearAuth } = useAuthStore();
   const { showToast } = useUIStore();
+  const { unread } = useNotificationStore();
 
   const activeFamily = families.find((f) => f.id === activeFamilyId);
 
@@ -113,6 +118,20 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
           )}
         </div>
 
+        {/* Bell button */}
+        <button
+          onClick={() => { setNotifOpen((v) => !v); setFamilyMenuOpen(false); }}
+          className="shrink-0 relative p-2 rounded-xl text-text-muted hover:text-text hover:bg-bg-2 transition-colors"
+          aria-label="Notifications"
+        >
+          <Bell size={19} strokeWidth={1.8} />
+          {unread > 0 && (
+            <span className="absolute top-1 right-1 min-w-[14px] h-[14px] flex items-center justify-center bg-accent text-white text-[9px] font-bold rounded-full px-[3px] leading-none">
+              {unread > 99 ? "99+" : unread}
+            </span>
+          )}
+        </button>
+
         {/* Settings button */}
         <button
           onClick={() => setSettingsOpen(true)}
@@ -121,6 +140,14 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
           <Settings size={19} strokeWidth={1.8} />
         </button>
       </header>
+
+      {/* Notification panel */}
+      <NotificationPanel
+        open={notifOpen}
+        activeTab={notifTab}
+        onTabChange={setNotifTab}
+        onClose={() => setNotifOpen(false)}
+      />
 
       {/* Settings bottom sheet */}
       {settingsOpen && (

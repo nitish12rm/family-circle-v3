@@ -5,6 +5,7 @@ import { Comment } from "@/models/Comment";
 import { Post } from "@/models/Post";
 import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
+import { createNotification } from "@/lib/createNotification";
 
 export async function GET(
   req: NextRequest,
@@ -57,7 +58,7 @@ export async function POST(
       return NextResponse.json({ error: "Content required" }, { status: 400 });
     }
 
-    const post = await Post.findById(postId).lean() as unknown as { family_id: string } | null;
+    const post = await Post.findById(postId).lean() as unknown as { family_id: string; author_id: string } | null;
     if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const comment = await Comment.create({
@@ -69,6 +70,16 @@ export async function POST(
     });
 
     const author = await Profile.findById(userId).select("_id name avatar").lean() as unknown as { _id: string; name: string; avatar?: string } | null;
+
+    // Fire-and-forget: notify post author of new comment
+    createNotification({
+      recipientIds: [post.author_id],
+      actorId: userId,
+      type: "post_comment",
+      entityId: postId,
+      familyId: post.family_id,
+      meta: { comment_preview: content.trim().slice(0, 80) },
+    }).catch(() => {});
 
     return NextResponse.json({
       id: comment._id,

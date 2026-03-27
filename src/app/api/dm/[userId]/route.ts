@@ -5,6 +5,7 @@ import { DirectMessage } from "@/models/DirectMessage";
 import { MessageRead } from "@/models/MessageRead";
 import { Profile } from "@/models/Profile";
 import { randomUUID } from "crypto";
+import { createNotification } from "@/lib/createNotification";
 
 export async function GET(
   req: NextRequest,
@@ -94,6 +95,15 @@ export async function POST(
     });
 
     const sender = await Profile.findById(me).select("_id name avatar").lean() as unknown as { _id: string; name: string; avatar?: string } | null;
+
+    // Fire-and-forget: notify recipient of new DM
+    createNotification({
+      recipientIds: [other],
+      actorId: me,
+      type: "new_dm",
+      entityId: dm._id as string,
+      meta: { preview: content.trim().slice(0, 80) },
+    }).catch(() => {});
 
     return NextResponse.json({
       id: dm._id,
