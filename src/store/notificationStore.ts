@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { api } from "@/lib/api";
-import { PollingTransport } from "@/lib/notificationTransport";
+import { FCMTransport } from "@/lib/notificationTransport";
 
 export type NotificationType =
   | "new_post"
@@ -40,7 +40,7 @@ interface NotificationState {
   stopPolling: () => void;
 }
 
-const transport = new PollingTransport(15_000);
+const transport = new FCMTransport();
 
 export const useNotificationStore = create<NotificationState>((set, get) => ({
   notifications: [],

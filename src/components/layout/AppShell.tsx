@@ -50,7 +50,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, [token, setFamilies]);
 
-  // Start notification polling when authenticated; stop on sign-out
+  // Start FCM / polling transport when authenticated; stop on sign-out
   useEffect(() => {
     if (!token) {
       stopPolling();
@@ -60,6 +60,37 @@ export default function AppShell({ children }: { children: ReactNode }) {
     startPolling();
     return () => stopPolling();
   }, [token, fetchNotifications, startPolling, stopPolling]);
+
+  // Request push permission + register FCM token (silent — never blocks auth)
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      try {
+        if (typeof window === "undefined" || !("Notification" in window)) return;
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") return;
+
+        const { getFirebaseMessaging } = await import("@/lib/firebase");
+        const { getToken } = await import("firebase/messaging");
+        const messaging = await getFirebaseMessaging();
+        if (!messaging) return;
+
+        // Register Firebase SW at a dedicated scope so it doesn't clash with next-pwa
+        const swReg = await navigator.serviceWorker.register(
+          "/firebase-messaging-sw.js",
+          { scope: "/firebase-cloud-messaging-push-scope" }
+        );
+
+        const fcmToken = await getToken(messaging, {
+          vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
+          serviceWorkerRegistration: swReg,
+        });
+        if (fcmToken) {
+          api.post("/api/profile/fcm-token", { token: fcmToken }).catch(() => {});
+        }
+      } catch { /* permission denied or FCM not configured — silent */ }
+    })();
+  }, [token]);
 
   // Show spinner while hydrating from localStorage
   if (!_hasHydrated) {

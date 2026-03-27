@@ -39,6 +39,42 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 2. Create free account
 3. Copy Cloud Name, API Key, API Secret from dashboard
 
+### Firebase Cloud Messaging (optional — for real push notifications)
+
+Without Firebase the app falls back to 15-second polling automatically.
+
+1. Go to https://console.firebase.google.com and create a project
+2. Add a **Web app** to the project — Firebase will give you a config object
+3. Copy the values into `.env.local`:
+
+```
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+```
+
+4. In Firebase console → **Project Settings → Cloud Messaging** → **Web Push certificates**
+   - Generate a key pair → copy the **Key pair** string as:
+   ```
+   NEXT_PUBLIC_FIREBASE_VAPID_KEY=
+   ```
+
+5. Download a **service account key** for the Admin SDK:
+   - Firebase console → Project Settings → **Service accounts** → Generate new private key
+   - Open the downloaded JSON and copy:
+   ```
+   FIREBASE_PROJECT_ID=          # same as above
+   FIREBASE_CLIENT_EMAIL=        # client_email field
+   FIREBASE_PRIVATE_KEY=         # private_key field (paste the entire -----BEGIN ... END----- block)
+   ```
+   > On Vercel, the `\n` newlines in the private key are stored literally — the app handles this automatically.
+
+6. Update `public/firebase-messaging-sw.js` — replace the `REPLACE_WITH_*` placeholder strings
+   with your actual Firebase config values so background push works when the tab is closed.
+
 ## 3. Add PWA Icons
 
 Place two PNG files in `public/icons/`:
@@ -65,11 +101,13 @@ Open http://localhost:3000
 ## Features
 - Sign up / Sign in
 - Onboarding (profile + family setup)
-- Family Feed (posts with photos)
+- Family Feed (posts with photos, likes, comments)
 - Interactive Family Tree (pan, zoom, add members & relationships)
-- Group Chat (3-second polling)
+- Direct Messages + Group Chat
+- Assignments / To-do with updates and status tracking
 - Document sharing (Cloudinary)
 - User profiles with avatars
+- Push notifications (FCM foreground + background, falls back to polling)
 - PWA (installable on iOS, Android, Desktop)
 
 ## Architecture
@@ -78,4 +116,5 @@ Open http://localhost:3000
 - **JWT** authentication (30-day tokens, stored in localStorage)
 - **Tailwind CSS** for styling (dark theme)
 - **Zustand** for client state management
+- **Firebase Cloud Messaging** for real-time push notifications (plug-and-play transport)
 - **@ducanh2912/next-pwa** for service worker / PWA
