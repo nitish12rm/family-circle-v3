@@ -78,6 +78,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
         if (!messaging) return;
 
         const swReg = await navigator.serviceWorker.register("/api/firebase-messaging-sw");
+
+        // Wait for the SW to become active before subscribing
+        await new Promise<void>((resolve) => {
+          if (swReg.active) { resolve(); return; }
+          const sw = swReg.installing ?? swReg.waiting;
+          sw?.addEventListener("statechange", function handler(e) {
+            if ((e.target as ServiceWorker).state === "activated") {
+              sw.removeEventListener("statechange", handler);
+              resolve();
+            }
+          });
+        });
         console.log("[FCM] swReg:", swReg.scope);
 
         const fcmToken = await getToken(messaging, {
