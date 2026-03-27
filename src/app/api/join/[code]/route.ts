@@ -68,7 +68,7 @@ export async function POST(
       .select("user_id")
       .lean()
       .then((members) => {
-        const recipientIds = (members as { user_id: string }[]).map((m) => m.user_id);
+        const recipientIds = (members as unknown as { user_id: string }[]).map((m) => m.user_id);
         return createNotification({
           recipientIds,
           actorId: userId,
