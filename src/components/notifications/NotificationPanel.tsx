@@ -74,7 +74,11 @@ function getNotificationText(n: AppNotification): { title: string; subtitle?: st
     case "assignment_update":
       return {
         title: `${actor} updated an assignment`,
-        subtitle: meta.title ? String(meta.title) : undefined,
+        subtitle: meta.status_change
+          ? String(meta.status_change)
+          : meta.title
+          ? String(meta.title)
+          : undefined,
       };
     default:
       return { title: "New notification" };
