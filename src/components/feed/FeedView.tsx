@@ -288,7 +288,7 @@ export default function FeedView() {
               ))}
             </div>
             {filterDate === "custom" && (
-              <div className="flex flex-col gap-2 mt-1 bg-bg rounded-xl border border-border p-2.5">
+              <div className="flex flex-col gap-2 mt-1 bg-bg rounded-xl border border-border p-2.5 overflow-hidden">
                 <p className="text-[10px] text-text-faint">Select a start and/or end date to filter posts.</p>
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] font-medium text-text-muted px-0.5">From date</label>
@@ -297,7 +297,7 @@ export default function FeedView() {
                     value={filterCustomFrom}
                     max={filterCustomTo || undefined}
                     onChange={(e) => setFilterCustomFrom(e.target.value)}
-                    className="w-full bg-bg-2 border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                    className="w-full min-w-0 bg-bg-2 border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent transition-colors"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
@@ -307,7 +307,7 @@ export default function FeedView() {
                     value={filterCustomTo}
                     min={filterCustomFrom || undefined}
                     onChange={(e) => setFilterCustomTo(e.target.value)}
-                    className="w-full bg-bg-2 border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent transition-colors"
+                    className="w-full min-w-0 bg-bg-2 border border-border rounded-xl px-3 py-2 text-sm text-text focus:outline-none focus:border-accent transition-colors"
                   />
                 </div>
                 {filterCustomFrom && filterCustomTo && filterCustomFrom > filterCustomTo && (
