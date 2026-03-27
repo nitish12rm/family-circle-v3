@@ -72,8 +72,6 @@ NEXT_PUBLIC_FIREBASE_APP_ID=
    ```
    > On Vercel, the `\n` newlines in the private key are stored literally — the app handles this automatically.
 
-6. Update `public/firebase-messaging-sw.js` — replace the `REPLACE_WITH_*` placeholder strings
-   with your actual Firebase config values so background push works when the tab is closed.
 
 ## 3. Add PWA Icons
 
