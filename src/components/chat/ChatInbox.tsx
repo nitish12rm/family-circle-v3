@@ -174,7 +174,7 @@ export default function ChatInbox() {
                           </span>
                         )}
                       </div>
-                      <p className={`text-xs mt-0.5 truncate ${hasUnread ? "text-text font-medium" : online ? "text-green-500 font-medium" : "text-text-muted"}`}>
+                      <p className={`text-xs mt-0.5 truncate ${hasUnread ? "text-text font-medium" : conv ? "text-text-muted" : online ? "text-green-500 font-medium" : "text-text-muted"}`}>
                         {conv
                           ? `${conv.isMe ? "You: " : ""}${conv.lastMessage}`
                           : online
