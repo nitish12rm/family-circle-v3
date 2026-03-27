@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, ArrowLeft } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
+import { useNotificationStore } from "@/store/notificationStore";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
@@ -44,6 +45,7 @@ function formatLastSeen(lastSeen?: string | null): string {
 
 export default function DMChatView({ userId }: { userId: string }) {
   const { user } = useAuthStore();
+  const { markReadWhere } = useNotificationStore();
   const router = useRouter();
   const [messages, setMessages]   = useState<DMMessage[]>([]);
   const [other, setOther]         = useState<OtherProfile | null>(null);
@@ -68,7 +70,8 @@ export default function DMChatView({ userId }: { userId: string }) {
 
   const markRead = useCallback(() => {
     api.post(`/api/dm/${userId}/read`, {}).catch(() => {});
-  }, [userId]);
+    markReadWhere(["new_dm"], { actor_id: userId });
+  }, [userId, markReadWhere]);
 
   const loadMessages = useCallback(async (initial = false) => {
     try {

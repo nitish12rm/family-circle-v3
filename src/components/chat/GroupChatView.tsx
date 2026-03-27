@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, ArrowLeft, Users } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { useFamilyStore } from "@/store/familyStore";
+import { useNotificationStore } from "@/store/notificationStore";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import Avatar from "@/components/ui/Avatar";
@@ -13,6 +14,7 @@ import type { Message } from "@/types";
 export default function GroupChatView({ familyId }: { familyId: string }) {
   const { user } = useAuthStore();
   const { families } = useFamilyStore();
+  const { markReadWhere } = useNotificationStore();
   const router = useRouter();
   const family = families.find((f) => f.id === familyId);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -24,7 +26,8 @@ export default function GroupChatView({ familyId }: { familyId: string }) {
 
   const markRead = useCallback(() => {
     api.post(`/api/families/${familyId}/messages/read`, {}).catch(() => {});
-  }, [familyId]);
+    markReadWhere(["new_group_message"], { family_id: familyId });
+  }, [familyId, markReadWhere]);
 
   const loadMessages = useCallback(async (initial = false) => {
     try {

@@ -24,11 +24,18 @@ export interface AppNotification {
   created_at: string;
 }
 
+interface MarkReadFilter {
+  actor_id?: string;
+  family_id?: string;
+}
+
 interface NotificationState {
   notifications: AppNotification[];
   unread: number;
   fetch: () => Promise<void>;
   markAllRead: () => Promise<void>;
+  /** Mark read for specific types, optionally scoped to actor or family */
+  markReadWhere: (types: NotificationType[], filter?: MarkReadFilter) => Promise<void>;
   startPolling: () => void;
   stopPolling: () => void;
 }
@@ -53,6 +60,25 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         notifications: s.notifications.map((n) => ({ ...n, read: true })),
         unread: 0,
       }));
+    } catch { /* silent */ }
+  },
+
+  markReadWhere: async (types, filter) => {
+    try {
+      const params = new URLSearchParams();
+      types.forEach((t) => params.append("types", t));
+      if (filter?.actor_id)  params.set("actor_id",  filter.actor_id);
+      if (filter?.family_id) params.set("family_id", filter.family_id);
+      await api.patch(`/api/notifications/read?${params.toString()}`, {});
+      set((s) => {
+        const updated = s.notifications.map((n) => {
+          if (!types.includes(n.type)) return n;
+          if (filter?.actor_id  && n.actor_id  !== filter.actor_id)  return n;
+          if (filter?.family_id && n.family_id !== filter.family_id) return n;
+          return { ...n, read: true };
+        });
+        return { notifications: updated, unread: updated.filter((n) => !n.read).length };
+      });
     } catch { /* silent */ }
   },
 
