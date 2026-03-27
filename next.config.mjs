@@ -19,6 +19,16 @@ const nextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        // Serve the env-injected Firebase SW at a root-level path so the
+        // browser allows scope "/" without needing Service-Worker-Allowed header
+        source: "/firebase-messaging-sw.js",
+        destination: "/api/firebase-messaging-sw",
+      },
+    ];
+  },
 };
 
 export default pwaConfig(nextConfig);

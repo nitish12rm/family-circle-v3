@@ -61,8 +61,6 @@ self.addEventListener("notificationclick", (event) => {
   return new NextResponse(js, {
     headers: {
       "Content-Type": "application/javascript",
-      // Allow this SW (served from /api/...) to control the custom FCM scope
-      "Service-Worker-Allowed": "/",
       "Cache-Control": "no-store",
     },
   });

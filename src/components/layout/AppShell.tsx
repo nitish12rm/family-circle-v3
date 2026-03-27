@@ -77,7 +77,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         // Register Firebase SW at a dedicated scope so it doesn't clash with next-pwa
         const swReg = await navigator.serviceWorker.register(
-          "/api/firebase-messaging-sw",
+          "/firebase-messaging-sw.js",
           { scope: "/firebase-cloud-messaging-push-scope" }
         );
 
