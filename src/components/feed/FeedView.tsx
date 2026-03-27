@@ -59,7 +59,9 @@ export default function FeedView() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterAuthorId, setFilterAuthorId] = useState("");
   const [filterTags, setFilterTags] = useState<string[]>([]);
-  const [filterDate, setFilterDate] = useState<"today" | "week" | "month" | "">("");
+  const [filterDate, setFilterDate] = useState<"today" | "week" | "month" | "custom" | "">("");
+  const [filterCustomFrom, setFilterCustomFrom] = useState("");
+  const [filterCustomTo, setFilterCustomTo] = useState("");
 
   const activeFilterCount = (filterAuthorId ? 1 : 0) + (filterTags.length > 0 ? 1 : 0) + (filterDate ? 1 : 0);
 
@@ -107,6 +109,13 @@ export default function FeedView() {
         if (postDate < new Date(now.getTime() - 7 * 86400000)) return false;
       } else if (filterDate === "month") {
         if (postDate < new Date(now.getTime() - 30 * 86400000)) return false;
+      } else if (filterDate === "custom") {
+        if (filterCustomFrom && postDate < new Date(filterCustomFrom)) return false;
+        if (filterCustomTo) {
+          const toEnd = new Date(filterCustomTo);
+          toEnd.setHours(23, 59, 59, 999);
+          if (postDate > toEnd) return false;
+        }
       }
     }
     return true;
@@ -171,7 +180,7 @@ export default function FeedView() {
     }
   };
 
-  const clearFilters = () => { setFilterAuthorId(""); setFilterTags([]); setFilterDate(""); };
+  const clearFilters = () => { setFilterAuthorId(""); setFilterTags([]); setFilterDate(""); setFilterCustomFrom(""); setFilterCustomTo(""); };
 
   if (!activeFamilyId) {
     return (
@@ -258,17 +267,47 @@ export default function FeedView() {
           {/* Date filter */}
           <div className="flex flex-col gap-1.5">
             <span className="text-[10px] font-medium text-text-faint uppercase tracking-wide px-0.5">Time</span>
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 flex-wrap">
               {(["today", "week", "month"] as const).map((d) => (
                 <button
                   key={d}
                   onClick={() => setFilterDate(filterDate === d ? "" : d)}
-                  className={`flex-1 py-1.5 rounded-xl border text-xs font-medium transition-colors ${filterDate === d ? "border-accent bg-accent/10 text-accent" : "border-border bg-bg text-text-muted"}`}
+                  className={`flex-1 min-w-[72px] py-1.5 rounded-xl border text-xs font-medium transition-colors ${filterDate === d ? "border-accent bg-accent/10 text-accent" : "border-border bg-bg text-text-muted"}`}
                 >
                   {d === "today" ? "Today" : d === "week" ? "This week" : "This month"}
                 </button>
               ))}
+              <button
+                onClick={() => setFilterDate(filterDate === "custom" ? "" : "custom")}
+                className={`flex-1 min-w-[72px] py-1.5 rounded-xl border text-xs font-medium transition-colors ${filterDate === "custom" ? "border-accent bg-accent/10 text-accent" : "border-border bg-bg text-text-muted"}`}
+              >
+                Custom
+              </button>
             </div>
+            {filterDate === "custom" && (
+              <div className="flex gap-2 mt-1">
+                <div className="flex-1 flex flex-col gap-0.5">
+                  <label className="text-[10px] text-text-faint px-0.5">From</label>
+                  <input
+                    type="date"
+                    value={filterCustomFrom}
+                    max={filterCustomTo || undefined}
+                    onChange={(e) => setFilterCustomFrom(e.target.value)}
+                    className="w-full bg-bg border border-border rounded-xl px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex-1 flex flex-col gap-0.5">
+                  <label className="text-[10px] text-text-faint px-0.5">To</label>
+                  <input
+                    type="date"
+                    value={filterCustomTo}
+                    min={filterCustomFrom || undefined}
+                    onChange={(e) => setFilterCustomTo(e.target.value)}
+                    className="w-full bg-bg border border-border rounded-xl px-2.5 py-1.5 text-xs text-text focus:outline-none focus:border-accent"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {activeFilterCount > 0 && (
@@ -300,8 +339,13 @@ export default function FeedView() {
           })}
           {filterDate && (
             <span className="flex items-center gap-1 text-xs bg-accent/10 text-accent border border-accent/30 px-2 py-0.5 rounded-full">
-              {filterDate === "today" ? "Today" : filterDate === "week" ? "This week" : "This month"}
-              <button onClick={() => setFilterDate("")}><X size={10} /></button>
+              {filterDate === "today" ? "Today"
+                : filterDate === "week" ? "This week"
+                : filterDate === "month" ? "This month"
+                : filterCustomFrom || filterCustomTo
+                  ? `${filterCustomFrom || "…"} → ${filterCustomTo || "…"}`
+                  : "Custom range"}
+              <button onClick={() => { setFilterDate(""); setFilterCustomFrom(""); setFilterCustomTo(""); }}><X size={10} /></button>
             </span>
           )}
         </div>
