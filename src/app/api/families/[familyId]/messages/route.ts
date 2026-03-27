@@ -4,7 +4,9 @@ import { requireAuth } from "@/lib/auth";
 import { Message } from "@/models/Message";
 import { MessageRead } from "@/models/MessageRead";
 import { Profile } from "@/models/Profile";
+import { FamilyMember } from "@/models/FamilyMember";
 import { randomUUID } from "crypto";
+import { createNotification } from "@/lib/createNotification";
 
 export async function GET(
   req: NextRequest,
@@ -94,6 +96,23 @@ export async function POST(
     const sender = await Profile.findById(userId)
       .select("_id name avatar")
       .lean() as Record<string, unknown> | null;
+
+    // Fire-and-forget: notify all family members of the new group message
+    FamilyMember.find({ family_id: familyId })
+      .select("user_id")
+      .lean()
+      .then((members) => {
+        const recipientIds = (members as unknown as { user_id: string }[]).map((m) => m.user_id);
+        return createNotification({
+          recipientIds,
+          actorId: userId,
+          type: "new_group_message",
+          entityId: message._id as string,
+          familyId,
+          meta: { preview: content.trim().slice(0, 80) },
+        });
+      })
+      .catch(() => {});
 
     return NextResponse.json({
       id: message._id,

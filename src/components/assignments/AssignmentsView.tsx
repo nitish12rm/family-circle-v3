@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ClipboardList, Plus, ArrowRight, Calendar, Clock,
   CheckCircle2, CircleDot, Circle, ChevronDown, Send,
@@ -445,6 +446,7 @@ export default function AssignmentsView() {
   const { activeFamilyId } = useFamilyStore();
   const { profile } = useAuthStore();
   const { showToast } = useUIStore();
+  const searchParams = useSearchParams();
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [members, setMembers]         = useState<FamilyMember[]>([]);
@@ -452,6 +454,7 @@ export default function AssignmentsView() {
   const [tab, setTab]                 = useState<"for_me" | "by_me">("for_me");
   const [createOpen, setCreateOpen]   = useState(false);
   const [detailId, setDetailId]       = useState<string | null>(null);
+  const deepLinkHandled               = useRef(false);
 
   const load = useCallback(async () => {
     if (!activeFamilyId) return;
@@ -470,6 +473,19 @@ export default function AssignmentsView() {
   }, [activeFamilyId, showToast]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Auto-open assignment from notification deep-link (?open=<id>) — runs once only
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId || loading || deepLinkHandled.current) return;
+    deepLinkHandled.current = true;
+    setDetailId(openId);
+    setTab((prev) => {
+      const a = assignments.find((x) => x.id === openId);
+      if (!a) return prev;
+      return a.assignee_id === profile?.id ? "for_me" : "by_me";
+    });
+  }, [loading, searchParams, assignments, profile?.id]);
 
   // Poll every 6 s — keeps updates and status changes realtime for both parties
   useEffect(() => {

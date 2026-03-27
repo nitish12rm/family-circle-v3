@@ -3,6 +3,7 @@ import { ReactNode, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { useFamilyStore } from "@/store/familyStore";
+import { useNotificationStore } from "@/store/notificationStore";
 import { api } from "@/lib/api";
 import TopBar from "./TopBar";
 import BottomNav from "./BottomNav";
@@ -16,6 +17,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { token, user, profile, profileLoaded, _hasHydrated, setProfile, clearAuth } =
     useAuthStore();
   const { setFamilies } = useFamilyStore();
+  const { fetch: fetchNotifications, startPolling, stopPolling } = useNotificationStore();
 
   // Auth guard — wait for localStorage hydration before deciding
   useEffect(() => {
@@ -47,6 +49,17 @@ export default function AppShell({ children }: { children: ReactNode }) {
       .then(setFamilies)
       .catch(() => {});
   }, [token, setFamilies]);
+
+  // Start notification polling when authenticated; stop on sign-out
+  useEffect(() => {
+    if (!token) {
+      stopPolling();
+      return;
+    }
+    fetchNotifications();
+    startPolling();
+    return () => stopPolling();
+  }, [token, fetchNotifications, startPolling, stopPolling]);
 
   // Show spinner while hydrating from localStorage
   if (!_hasHydrated) {
