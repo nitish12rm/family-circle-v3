@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
           $set: {
             fcm_tokens: {
               $slice: [
-                { $setUnion: ["$fcm_tokens", [token]] },
+                { $setUnion: [{ $ifNull: ["$fcm_tokens", []] }, [token]] },
                 -5,
               ],
             },
