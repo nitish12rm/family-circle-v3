@@ -1,99 +1,100 @@
 "use client";
 import { useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { X, Bell, MessageCircle, ClipboardList, Rss, CheckCheck } from "lucide-react";
+import {
+  X, Bell, MessageCircle, ClipboardList, Rss,
+  Heart, MessageSquare, UserPlus, Mail, Users,
+  RotateCcw, CheckCheck,
+} from "lucide-react";
 import { useNotificationStore, type AppNotification, type NotificationType } from "@/store/notificationStore";
 import Avatar from "@/components/ui/Avatar";
 import { formatDistanceToNow } from "date-fns";
 import { api } from "@/lib/api";
 
-// ─── Tab definitions ────────────────────────────────────────────────────────
+// ─── Tab definitions ──────────────────────────────────────────────────────────
 
 type TabId = "feed" | "chat" | "tasks";
 
-const TABS: { id: TabId; label: string; icon: React.ReactNode; types: NotificationType[] }[] = [
-  {
-    id: "feed",
-    label: "Feed",
-    icon: <Rss size={14} />,
-    types: ["new_post", "post_like", "post_comment", "new_member"],
-  },
-  {
-    id: "chat",
-    label: "Chat",
-    icon: <MessageCircle size={14} />,
-    types: ["new_dm", "new_group_message"],
-  },
-  {
-    id: "tasks",
-    label: "Tasks",
-    icon: <ClipboardList size={14} />,
-    types: ["new_assignment", "assignment_update"],
-  },
+const TABS: { id: TabId; label: string; Icon: React.ElementType; types: NotificationType[] }[] = [
+  { id: "feed",  label: "Feed",  Icon: Rss,           types: ["new_post", "post_like", "post_comment", "new_member"] },
+  { id: "chat",  label: "Chat",  Icon: MessageCircle, types: ["new_dm", "new_group_message"] },
+  { id: "tasks", label: "Tasks", Icon: ClipboardList, types: ["new_assignment", "assignment_update"] },
 ];
 
-// ─── Notification text ───────────────────────────────────────────────────────
+// ─── Type badge config ────────────────────────────────────────────────────────
 
-function getNotificationText(n: AppNotification): { title: string; subtitle?: string } {
-  const actor = n.actor?.name ?? "Someone";
+const TYPE_BADGE: Record<NotificationType, { Icon: React.ElementType; bg: string }> = {
+  new_post:            { Icon: Rss,           bg: "bg-accent" },
+  post_like:           { Icon: Heart,         bg: "bg-rose-500" },
+  post_comment:        { Icon: MessageSquare, bg: "bg-blue-500" },
+  new_member:          { Icon: UserPlus,      bg: "bg-emerald-500" },
+  new_dm:              { Icon: Mail,          bg: "bg-violet-500" },
+  new_group_message:   { Icon: Users,         bg: "bg-cyan-500" },
+  new_assignment:      { Icon: ClipboardList, bg: "bg-orange-500" },
+  assignment_update:   { Icon: RotateCcw,     bg: "bg-amber-500" },
+};
+
+// ─── Notification content ─────────────────────────────────────────────────────
+
+function getContent(n: AppNotification): { action: string; subtitle?: string } {
   const meta = n.meta ?? {};
 
   switch (n.type) {
     case "new_post":
       return {
-        title: `${actor} shared a new post`,
+        action: "shared a new post",
         subtitle: meta.post_preview ? String(meta.post_preview) : undefined,
       };
     case "post_like":
-      return { title: `${actor} liked your post` };
+      return { action: "liked your post" };
     case "post_comment":
       return {
-        title: `${actor} commented on your post`,
-        subtitle: meta.comment_preview ? String(meta.comment_preview) : undefined,
+        action: "commented on your post",
+        subtitle: meta.comment_preview ? `"${String(meta.comment_preview)}"` : undefined,
       };
     case "new_member":
       return {
-        title: `${actor} joined the family`,
-        subtitle: meta.family_name ? `in ${String(meta.family_name)}` : undefined,
+        action: "joined the family",
+        subtitle: meta.family_name ? String(meta.family_name) : undefined,
       };
     case "new_dm":
       return {
-        title: `${actor} sent you a message`,
+        action: "sent you a message",
         subtitle: meta.preview ? String(meta.preview) : undefined,
       };
     case "new_group_message":
       return {
-        title: `${actor} sent a group message`,
+        action: "sent a group message",
         subtitle: meta.preview ? String(meta.preview) : undefined,
       };
     case "new_assignment":
       return {
-        title: `${actor} assigned you a task`,
+        action: "assigned you a task",
         subtitle: meta.title ? `"${String(meta.title)}"` : undefined,
       };
     case "assignment_update":
       if (meta.status_change) {
         return {
-          title: `${actor} changed status`,
+          action: "changed task status",
           subtitle: meta.title
             ? `${String(meta.title)}: ${String(meta.status_change)}`
             : String(meta.status_change),
         };
       }
       return {
-        title: `${actor} added a note`,
+        action: "added a task note",
         subtitle: meta.title
           ? `"${String(meta.title)}"${meta.preview ? ` — ${String(meta.preview)}` : ""}`
           : meta.preview ? String(meta.preview) : undefined,
       };
     default:
-      return { title: "New notification" };
+      return { action: "sent a notification" };
   }
 }
 
-// ─── Navigation path ─────────────────────────────────────────────────────────
+// ─── Navigation path ──────────────────────────────────────────────────────────
 
-function getNotificationPath(n: AppNotification): string {
+function getPath(n: AppNotification): string {
   switch (n.type) {
     case "new_post":
     case "post_like":
@@ -113,81 +114,85 @@ function getNotificationPath(n: AppNotification): string {
   }
 }
 
-// ─── Tab icon component ───────────────────────────────────────────────────────
-
-function NotificationIcon({ type }: { type: NotificationType }) {
-  const base = "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-sm";
-  switch (type) {
-    case "new_post":        return <div className={`${base} bg-accent/15 text-accent`}>📝</div>;
-    case "post_like":       return <div className={`${base} bg-rose-500/15 text-rose-400`}>❤️</div>;
-    case "post_comment":    return <div className={`${base} bg-blue-500/15 text-blue-400`}>💬</div>;
-    case "new_member":      return <div className={`${base} bg-green-500/15 text-green-400`}>👋</div>;
-    case "new_dm":          return <div className={`${base} bg-purple-500/15 text-purple-400`}>✉️</div>;
-    case "new_group_message": return <div className={`${base} bg-cyan-500/15 text-cyan-400`}>💬</div>;
-    case "new_assignment":  return <div className={`${base} bg-orange-500/15 text-orange-400`}>📋</div>;
-    case "assignment_update": return <div className={`${base} bg-yellow-500/15 text-yellow-400`}>🔄</div>;
-    default:                return <div className={`${base} bg-bg-3`}><Bell size={14} /></div>;
-  }
-}
-
-// ─── Single notification row ─────────────────────────────────────────────────
+// ─── Notification row ─────────────────────────────────────────────────────────
 
 function NotificationRow({
-  notification,
+  n,
+  isLast,
   onClick,
 }: {
-  notification: AppNotification;
+  n: AppNotification;
+  isLast: boolean;
   onClick: (n: AppNotification) => void;
 }) {
-  const { title, subtitle } = getNotificationText(notification);
-  const timeAgo = formatDistanceToNow(new Date(notification.created_at), { addSuffix: true });
+  const { action, subtitle } = getContent(n);
+  const badge = TYPE_BADGE[n.type];
+  const BadgeIcon = badge.Icon;
+  const timeAgo = formatDistanceToNow(new Date(n.created_at), { addSuffix: true });
+  const actorName = n.actor?.name ?? "Someone";
 
   return (
     <button
-      onClick={() => onClick(notification)}
-      className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-bg-2 active:bg-bg-3 ${
-        !notification.read ? "bg-accent/5" : ""
-      }`}
+      onClick={() => onClick(n)}
+      className={`
+        w-full flex items-start gap-3 px-4 py-3.5 text-left transition-all duration-150
+        ${!n.read ? "bg-accent/[0.06] hover:bg-accent/[0.09]" : "hover:bg-white/[0.03]"}
+        ${!isLast ? "border-b border-white/[0.05]" : ""}
+        active:scale-[0.99]
+      `}
     >
-      {/* Actor avatar with type icon overlay */}
+      {/* Avatar + type badge */}
       <div className="relative shrink-0 mt-0.5">
-        <Avatar
-          src={notification.actor?.avatar}
-          name={notification.actor?.name ?? "?"}
-          size={36}
-        />
-        <span className="absolute -bottom-1 -right-1 text-[11px] leading-none">
-          {notification.type === "new_post" && "📝"}
-          {notification.type === "post_like" && "❤️"}
-          {notification.type === "post_comment" && "💬"}
-          {notification.type === "new_member" && "👋"}
-          {notification.type === "new_dm" && "✉️"}
-          {notification.type === "new_group_message" && "💬"}
-          {notification.type === "new_assignment" && "📋"}
-          {notification.type === "assignment_update" && "🔄"}
-        </span>
+        <Avatar src={n.actor?.avatar} name={actorName} size={38} />
+        <div
+          className={`absolute -bottom-0.5 -right-0.5 w-[18px] h-[18px] rounded-full flex items-center justify-center ring-[2.5px] ring-bg-1 ${badge.bg}`}
+        >
+          <BadgeIcon size={9} className="text-white" strokeWidth={2.5} />
+        </div>
       </div>
 
-      {/* Text */}
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm leading-snug ${!notification.read ? "font-semibold text-text" : "font-normal text-text-muted"}`}>
-          {title}
+      {/* Text block */}
+      <div className="flex-1 min-w-0 pt-0.5">
+        <p className="text-sm leading-snug">
+          <span className={`font-semibold ${!n.read ? "text-text" : "text-text-muted"}`}>
+            {actorName}
+          </span>
+          <span className={`${!n.read ? "text-text" : "text-text-muted"}`}> {action}</span>
         </p>
         {subtitle && (
-          <p className="text-xs text-text-faint mt-0.5 truncate">{subtitle}</p>
+          <p className="text-xs text-text-faint mt-0.5 line-clamp-1 leading-relaxed">
+            {subtitle}
+          </p>
         )}
-        <p className="text-[11px] text-text-faint mt-1">{timeAgo}</p>
+        <p className="text-[11px] text-text-faint mt-1 font-medium">{timeAgo}</p>
       </div>
 
-      {/* Unread dot */}
-      {!notification.read && (
-        <span className="w-2 h-2 rounded-full bg-accent shrink-0 mt-2" />
+      {/* Unread indicator */}
+      {!n.read && (
+        <div className="w-2 h-2 rounded-full bg-accent shadow-glow-sm shrink-0 mt-2.5" />
       )}
     </button>
   );
 }
 
-// ─── Main panel ──────────────────────────────────────────────────────────────
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyTab({ tab }: { tab: (typeof TABS)[number] }) {
+  const Icon = tab.Icon;
+  return (
+    <div className="flex flex-col items-center justify-center py-16 gap-3 px-6 text-center">
+      <div className="w-12 h-12 rounded-2xl bg-bg-2 border border-border flex items-center justify-center">
+        <Icon size={20} className="text-text-faint" />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-text-muted">No {tab.label} notifications</p>
+        <p className="text-xs text-text-faint mt-1">You're all caught up here.</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main panel ───────────────────────────────────────────────────────────────
 
 interface NotificationPanelProps {
   open: boolean;
@@ -210,9 +215,7 @@ export default function NotificationPanel({
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        onClose();
-      }
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) onClose();
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -226,9 +229,8 @@ export default function NotificationPanel({
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
-  const handleNotificationClick = useCallback(
+  const handleClick = useCallback(
     async (n: AppNotification) => {
-      // Mark single notification as read
       if (!n.read) {
         api.patch(`/api/notifications/${n.id}`, {}).catch(() => {});
         useNotificationStore.setState((s) => ({
@@ -239,130 +241,127 @@ export default function NotificationPanel({
         }));
       }
       onClose();
-      router.push(getNotificationPath(n));
+      router.push(getPath(n));
     },
     [onClose, router]
   );
 
-  const handleMarkAllRead = useCallback(() => {
-    markAllRead();
-  }, [markAllRead]);
-
-  // Per-tab filtered notifications
-  const currentTab = TABS.find((t) => t.id === activeTab)!;
-  const tabNotifications = notifications.filter((n) =>
-    currentTab.types.includes(n.type)
-  );
-
-  // Unread count per tab (for badges)
-  const tabUnread = (tab: TabId) =>
-    notifications.filter(
-      (n) => TABS.find((t) => t.id === tab)!.types.includes(n.type) && !n.read
-    ).length;
-
-  const totalUnread = notifications.filter((n) => !n.read).length;
+  const currentTab   = TABS.find((t) => t.id === activeTab)!;
+  const tabNotifs    = notifications.filter((n) => currentTab.types.includes(n.type));
+  const totalUnread  = notifications.filter((n) => !n.read).length;
+  const tabUnread    = (id: TabId) =>
+    notifications.filter((n) => TABS.find((t) => t.id === id)!.types.includes(n.type) && !n.read).length;
 
   if (!open) return null;
 
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-50 bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-50 bg-black/50" onClick={onClose} />
 
       {/* Panel */}
       <div
         ref={panelRef}
-        className="fixed top-0 left-0 right-0 z-50 mx-auto max-w-lg bg-bg-1 border-b border-x border-border rounded-b-3xl shadow-2xl flex flex-col"
-        style={{
-          top: "var(--topbar-h)",
-          maxHeight: "calc(100dvh - var(--topbar-h) - 16px)",
-        }}
+        className="fixed left-0 right-0 z-50 mx-auto max-w-lg animate-slide-up"
+        style={{ top: "var(--topbar-h)" }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border shrink-0">
-          <div className="flex items-center gap-2">
-            <Bell size={16} className="text-accent" />
-            <span className="text-sm font-semibold text-text">Notifications</span>
-            {totalUnread > 0 && (
-              <span className="bg-accent text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                {totalUnread > 99 ? "99+" : totalUnread}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            {totalUnread > 0 && (
-              <button
-                onClick={handleMarkAllRead}
-                className="flex items-center gap-1 text-xs text-accent hover:text-accent/80 px-2 py-1 rounded-lg hover:bg-accent/10 transition-colors"
-              >
-                <CheckCheck size={13} />
-                Mark all read
-              </button>
-            )}
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-text-faint hover:text-text hover:bg-bg-2 transition-colors"
-            >
-              <X size={15} />
-            </button>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className="flex border-b border-border shrink-0 px-2 pt-2">
-          {TABS.map((tab) => {
-            const unread = tabUnread(tab.id);
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-1 text-xs font-medium transition-colors rounded-t-lg relative ${
-                  isActive
-                    ? "text-accent"
-                    : "text-text-faint hover:text-text-muted"
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-                {unread > 0 && (
-                  <span
-                    className={`text-[9px] font-bold px-1 py-0.5 rounded-full leading-none ${
-                      isActive
-                        ? "bg-accent text-white"
-                        : "bg-text-faint/30 text-text-faint"
-                    }`}
-                  >
-                    {unread}
-                  </span>
-                )}
-                {/* Active underline */}
-                {isActive && (
-                  <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-accent rounded-full" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Notification list */}
-        <div className="overflow-y-auto flex-1">
-          {tabNotifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 gap-3 text-text-faint">
-              <NotificationIcon type={currentTab.types[0]} />
-              <p className="text-sm">No {currentTab.label.toLowerCase()} notifications</p>
+        <div
+          className="bg-bg-1 border-x border-b border-white/[0.08] rounded-b-[28px] shadow-card flex flex-col overflow-hidden"
+          style={{ maxHeight: "calc(100dvh - var(--topbar-h) - 1rem)" }}
+        >
+          {/* ── Header ── */}
+          <div className="flex items-center justify-between px-5 pt-4 pb-3.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-xl bg-accent/15 flex items-center justify-center">
+                <Bell size={13} className="text-accent" strokeWidth={2.5} />
+              </div>
+              <span className="text-sm font-semibold text-text tracking-tight">Notifications</span>
+              {totalUnread > 0 && (
+                <span className="bg-accent text-white text-[10px] font-bold px-1.5 py-[3px] rounded-full leading-none">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              )}
             </div>
-          ) : (
-            <div className="divide-y divide-border/50">
-              {tabNotifications.map((n) => (
+
+            <div className="flex items-center gap-0.5">
+              {totalUnread > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="flex items-center gap-1 text-[11px] font-medium text-accent hover:text-accent/70 transition-colors px-2.5 py-1.5 rounded-xl hover:bg-accent/10"
+                >
+                  <CheckCheck size={12} strokeWidth={2.5} />
+                  All read
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="w-7 h-7 rounded-xl flex items-center justify-center text-text-faint hover:text-text-muted hover:bg-bg-3 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+
+          {/* ── Tabs — matching app tab style ── */}
+          <div className="px-4 pb-3">
+            <div className="flex gap-1 bg-bg-2 border border-white/[0.06] rounded-2xl p-1">
+              {TABS.map((tab) => {
+                const count   = tabUnread(tab.id);
+                const active  = activeTab === tab.id;
+                const TabIcon = tab.Icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => onTabChange(tab.id)}
+                    className={`
+                      flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl
+                      text-xs font-medium transition-all duration-150
+                      ${active
+                        ? "bg-bg-3 text-text shadow-sm"
+                        : "text-text-muted hover:text-text"
+                      }
+                    `}
+                  >
+                    <TabIcon size={13} strokeWidth={2} />
+                    <span>{tab.label}</span>
+                    {count > 0 && (
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-[2px] rounded-full leading-none ${
+                          active
+                            ? "bg-accent/20 text-accent"
+                            : "bg-bg-4 text-text-faint"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* ── Divider ── */}
+          <div className="h-px bg-white/[0.06] mx-0" />
+
+          {/* ── Notification list ── */}
+          <div className="overflow-y-auto flex-1">
+            {tabNotifs.length === 0 ? (
+              <EmptyTab tab={currentTab} />
+            ) : (
+              tabNotifs.map((n, i) => (
                 <NotificationRow
                   key={n.id}
-                  notification={n}
-                  onClick={handleNotificationClick}
+                  n={n}
+                  isLast={i === tabNotifs.length - 1}
+                  onClick={handleClick}
                 />
-              ))}
-            </div>
-          )}
+              ))
+            )}
+          </div>
+
+          {/* ── Bottom safe padding ── */}
+          <div className="h-2 shrink-0" />
         </div>
       </div>
     </>
