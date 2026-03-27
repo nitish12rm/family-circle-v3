@@ -154,6 +154,14 @@ export interface Document {
   created_at: string;
 }
 
+export interface Todo {
+  id: string;
+  user_id: string;
+  title: string;
+  completed: boolean;
+  created_at: string;
+}
+
 export interface Toast {
   id: string;
   message: string;

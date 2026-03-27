@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Plus, RefreshCw, ImagePlus, X, SlidersHorizontal } from "lucide-react";
+import { RefreshCw, ImagePlus, X, SlidersHorizontal } from "lucide-react";
 import { useFamilyStore } from "@/store/familyStore";
 import { useAuthStore } from "@/store/authStore";
 import { useUIStore } from "@/store/uiStore";
@@ -40,7 +40,7 @@ function formatLastSeen(lastSeen: string | null | undefined): string {
 export default function FeedView() {
   const { activeFamilyId } = useFamilyStore();
   const { profile } = useAuthStore();
-  const { showToast } = useUIStore();
+  const { showToast, openCreatePost, setOpenCreatePost } = useUIStore();
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +95,14 @@ export default function FeedView() {
     const interval = setInterval(loadPosts, 10000);
     return () => clearInterval(interval);
   }, [loadPosts]);
+
+  // Open create modal when triggered from FAB
+  useEffect(() => {
+    if (openCreatePost) {
+      setOpenCreatePost(false);
+      setCreateOpen(true);
+    }
+  }, [openCreatePost, setOpenCreatePost]);
 
   // Client-side filtering
   const filteredPosts = posts.filter((post) => {
@@ -211,9 +219,6 @@ export default function FeedView() {
               </span>
             )}
           </button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus size={14} /> Post
-          </Button>
         </div>
       </div>
 
