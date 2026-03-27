@@ -65,6 +65,7 @@ export async function GET(
                 name: p.name,
                 email: p.email,
                 avatar: p.avatar,
+                last_seen: p.last_seen ?? null,
               }
             : null,
         };

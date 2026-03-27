@@ -6,10 +6,14 @@ interface UIState {
   toasts: Toast[];
   showToast: (message: string, type?: Toast["type"]) => void;
   removeToast: (id: string) => void;
+  openCreatePost: boolean;
+  setOpenCreatePost: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
   toasts: [],
+  openCreatePost: false,
+  setOpenCreatePost: (v) => set({ openCreatePost: v }),
   showToast: (message, type = "info") => {
     const id = Math.random().toString(36).slice(2);
     set((s) => ({ toasts: [...s.toasts, { id, message, type }] }));

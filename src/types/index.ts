@@ -19,6 +19,7 @@ export interface Profile {
   gender?: "male" | "female" | "other";
   onboarding_complete: boolean;
   created_at: string;
+  last_seen?: string | null;
 }
 
 export interface Family {
@@ -62,7 +63,21 @@ export interface Post {
   comment_count?: number;
   liked_by_me?: boolean;
   likers?: { id: string; name: string; avatar?: string }[];
+  tags?: string[];
 }
+
+export const FEED_TAGS = [
+  { id: "urgent",    label: "Urgent",    emoji: "🚨", bg: "bg-red-500/15",     text: "text-red-400",     border: "border-red-500/30" },
+  { id: "traveling", label: "Traveling", emoji: "✈️", bg: "bg-blue-500/15",    text: "text-blue-400",    border: "border-blue-500/30" },
+  { id: "scenery",   label: "Scenery",   emoji: "🌄", bg: "bg-emerald-500/15", text: "text-emerald-400", border: "border-emerald-500/30" },
+  { id: "festival",  label: "Festival",  emoji: "🎉", bg: "bg-yellow-500/15",  text: "text-yellow-400",  border: "border-yellow-500/30" },
+  { id: "funny",     label: "Funny",     emoji: "😂", bg: "bg-pink-500/15",    text: "text-pink-400",    border: "border-pink-500/30" },
+  { id: "food",      label: "Food",      emoji: "🍽️", bg: "bg-orange-500/15",  text: "text-orange-400",  border: "border-orange-500/30" },
+  { id: "milestone", label: "Milestone", emoji: "🏆", bg: "bg-purple-500/15",  text: "text-purple-400",  border: "border-purple-500/30" },
+  { id: "memory",    label: "Memory",    emoji: "💫", bg: "bg-indigo-500/15",  text: "text-indigo-400",  border: "border-indigo-500/30" },
+] as const;
+
+export type FeedTagId = (typeof FEED_TAGS)[number]["id"];
 
 export interface PostComment {
   id: string;
@@ -136,6 +151,14 @@ export interface Document {
   description?: string;
   category: string;
   visibility: "public" | "private";
+  created_at: string;
+}
+
+export interface Todo {
+  id: string;
+  user_id: string;
+  title: string;
+  completed: boolean;
   created_at: string;
 }
 

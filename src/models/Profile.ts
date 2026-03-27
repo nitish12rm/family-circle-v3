@@ -14,6 +14,7 @@ const profileSchema = new Schema(
     goals: String,
     gender: { type: String, enum: ["male", "female", "other"], default: null },
     onboarding_complete: { type: Boolean, default: false },
+    last_seen: { type: Date, default: null },
   },
   { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
 );

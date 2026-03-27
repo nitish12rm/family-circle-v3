@@ -7,6 +7,7 @@ const postSchema = new Schema(
     author_id: { type: String, required: true },
     content: { type: String, required: true },
     media_urls: { type: [String], default: [] },
+    tags: { type: [String], default: [] },
   },
   { timestamps: { createdAt: "created_at", updatedAt: "updated_at" } }
 );

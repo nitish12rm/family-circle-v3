@@ -17,11 +17,29 @@ export async function GET(
     await connectDB();
     const { familyId } = await params;
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get("limit") ?? "20");
+    const limit = parseInt(searchParams.get("limit") ?? "50");
     const skip = parseInt(searchParams.get("offset") ?? "0");
+    const authorId = searchParams.get("author_id") ?? "";
+    const tagsParam = searchParams.get("tags") ?? "";
+    const fromDate = searchParams.get("from_date") ?? "";
+    const toDate = searchParams.get("to_date") ?? "";
 
-    type PostLean = { _id: string; family_id: string; author_id: string; content: string; media_urls: string[]; created_at: string };
-    const posts = await Post.find({ family_id: familyId })
+    // Update last_seen for the current user (fire-and-forget)
+    Profile.updateOne({ _id: userId }, { $set: { last_seen: new Date() } }).catch(() => {});
+
+    // Build query filters
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const query: Record<string, any> = { family_id: familyId };
+    if (authorId) query.author_id = authorId;
+    if (tagsParam) query.tags = { $all: tagsParam.split(",").filter(Boolean) };
+    if (fromDate || toDate) {
+      query.created_at = {};
+      if (fromDate) query.created_at.$gte = new Date(fromDate);
+      if (toDate) query.created_at.$lte = new Date(toDate);
+    }
+
+    type PostLean = { _id: string; family_id: string; author_id: string; content: string; media_urls: string[]; tags: string[]; created_at: string };
+    const posts = await Post.find(query)
       .sort({ created_at: -1 })
       .skip(skip)
       .limit(limit)
@@ -54,7 +72,6 @@ export async function GET(
       commentCountMap[c.post_id] = (commentCountMap[c.post_id] ?? 0) + 1;
     }
 
-    // Fetch profiles for preview likers
     const previewLikerIds = [...new Set(Object.values(likerIdsPerPost).flat())];
     const likerProfiles = previewLikerIds.length
       ? await Profile.find({ _id: { $in: previewLikerIds } }).select("_id name avatar").lean() as unknown as { _id: string; name: string; avatar?: string }[]
@@ -74,6 +91,7 @@ export async function GET(
           author_id: p.author_id,
           content: p.content,
           media_urls: Array.isArray(p.media_urls) ? p.media_urls : [],
+          tags: Array.isArray(p.tags) ? p.tags : [],
           created_at: p.created_at,
           like_count: likeCountMap[p._id] ?? 0,
           comment_count: commentCountMap[p._id] ?? 0,
@@ -96,7 +114,7 @@ export async function POST(
     const { userId } = requireAuth(req);
     await connectDB();
     const { familyId } = await params;
-    const { content, media_urls } = await req.json();
+    const { content, media_urls, tags } = await req.json();
 
     if (!content?.trim()) {
       return NextResponse.json({ error: "Content is required" }, { status: 400 });
@@ -108,6 +126,7 @@ export async function POST(
       author_id: userId,
       content: content.trim(),
       media_urls: media_urls ?? [],
+      tags: Array.isArray(tags) ? tags : [],
     });
 
     const author = await Profile.findById(userId)
@@ -120,6 +139,7 @@ export async function POST(
       author_id: post.author_id,
       content: post.content,
       media_urls: post.media_urls,
+      tags: post.tags,
       created_at: post.created_at,
       like_count: 0,
       comment_count: 0,
