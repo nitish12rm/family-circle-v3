@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
 import {
   ClipboardList, Plus, ArrowRight, Calendar, Clock,
   CheckCircle2, CircleDot, Circle, ChevronDown, Send,
@@ -441,7 +440,6 @@ export default function AssignmentsView() {
   const { activeFamilyId } = useFamilyStore();
   const { profile } = useAuthStore();
   const { showToast } = useUIStore();
-  const searchParams = useSearchParams();
 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [members, setMembers]         = useState<FamilyMember[]>([]);
@@ -468,9 +466,11 @@ export default function AssignmentsView() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Poll every 6 s — keeps updates and status changes realtime for both parties
   useEffect(() => {
-    if (searchParams.get("new") === "1") setCreateOpen(true);
-  }, [searchParams]);
+    const t = setInterval(load, 6000);
+    return () => clearInterval(t);
+  }, [load]);
 
   const handleUpdate = (patch: Partial<Assignment> & { id: string } & { _deleted?: boolean }) => {
     if ((patch as { _deleted?: boolean })._deleted) {

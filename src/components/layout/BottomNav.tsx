@@ -71,7 +71,7 @@ export default function BottomNav() {
     } else if (id === "todo") {
       router.push("/todos?new=1");
     } else if (id === "assign") {
-      router.push("/assignments?new=1");
+      router.push("/assignments");
     }
   };
 
