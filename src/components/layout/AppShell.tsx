@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { useFamilyStore } from "@/store/familyStore";
 import { useNotificationStore } from "@/store/notificationStore";
-import { api } from "@/lib/api";
 import TopBar from "./TopBar";
 import BottomNav from "./BottomNav";
 import ToastContainer from "@/components/ui/Toast";
@@ -61,47 +60,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
     return () => stopPolling();
   }, [token, fetchNotifications, startPolling, stopPolling]);
 
-  // Request push permission + register FCM token (silent — never blocks auth)
+  // Auto-register FCM token on load if permission was already granted
+  // (first-time permission prompt is handled by the bell button click in TopBar
+  //  to satisfy Safari's user-gesture requirement)
   useEffect(() => {
     if (!token) return;
-    (async () => {
-      try {
-        if (typeof window === "undefined" || !("Notification" in window)) { console.log("[FCM] no Notification API"); return; }
-        const permission = await Notification.requestPermission();
-        console.log("[FCM] permission:", permission);
-        if (permission !== "granted") return;
-
-        const { getFirebaseMessaging } = await import("@/lib/firebase");
-        const { getToken } = await import("firebase/messaging");
-        const messaging = await getFirebaseMessaging();
-        console.log("[FCM] messaging:", messaging);
-        if (!messaging) return;
-
-        const swReg = await navigator.serviceWorker.register("/api/firebase-messaging-sw");
-
-        // Wait for the SW to become active before subscribing
-        await new Promise<void>((resolve) => {
-          if (swReg.active) { resolve(); return; }
-          const sw = swReg.installing ?? swReg.waiting;
-          sw?.addEventListener("statechange", function handler(e) {
-            if ((e.target as ServiceWorker).state === "activated") {
-              sw.removeEventListener("statechange", handler);
-              resolve();
-            }
-          });
-        });
-        console.log("[FCM] swReg:", swReg.scope);
-
-        const fcmToken = await getToken(messaging, {
-          vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY,
-          serviceWorkerRegistration: swReg,
-        });
-        console.log("[FCM] token:", fcmToken);
-        if (fcmToken) {
-          api.post("/api/profile/fcm-token", { token: fcmToken }).catch(() => {});
-        }
-      } catch (e) { console.error("[FCM] error:", e); }
-    })();
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    import("@/lib/registerFcmToken").then(({ registerFcmToken }) => registerFcmToken()).catch(() => {});
   }, [token]);
 
   // Show spinner while hydrating from localStorage

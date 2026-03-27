@@ -35,6 +35,19 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
 
   const activeFamily = families.find((f) => f.id === activeFamilyId);
 
+  const handleBellClick = async () => {
+    setNotifOpen((v) => !v);
+    setFamilyMenuOpen(false);
+    // Request permission + register FCM token on first bell click
+    // (must be inside a user gesture for Safari compatibility)
+    if ("Notification" in window && Notification.permission === "default") {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        import("@/lib/registerFcmToken").then(({ registerFcmToken }) => registerFcmToken()).catch(() => {});
+      }
+    }
+  };
+
   const handleSignOut = () => {
     setSettingsOpen(false);
     clearAuth();
@@ -120,7 +133,7 @@ export default function TopBar({ profile }: { profile: Profile | null }) {
 
         {/* Bell button */}
         <button
-          onClick={() => { setNotifOpen((v) => !v); setFamilyMenuOpen(false); }}
+          onClick={handleBellClick}
           className="shrink-0 relative p-2 rounded-xl text-text-muted hover:text-text hover:bg-bg-2 transition-colors"
           aria-label="Notifications"
         >
