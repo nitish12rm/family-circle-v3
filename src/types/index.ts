@@ -154,6 +154,32 @@ export interface Document {
   created_at: string;
 }
 
+export type AssignmentStatus = "yet_to_start" | "in_progress" | "finished";
+
+export interface AssignmentUpdate {
+  id: string;
+  user_id: string;
+  text: string;
+  created_at: string;
+  author?: { id: string; name: string; avatar?: string } | null;
+}
+
+export interface Assignment {
+  id: string;
+  family_id: string;
+  title: string;
+  description: string;
+  assigner_id: string;
+  assignee_id: string;
+  deadline: string | null;
+  status: AssignmentStatus;
+  updates: AssignmentUpdate[];
+  created_at: string;
+  updated_at: string;
+  assigner?: { id: string; name: string; avatar?: string } | null;
+  assignee?: { id: string; name: string; avatar?: string } | null;
+}
+
 export interface Todo {
   id: string;
   user_id: string;
