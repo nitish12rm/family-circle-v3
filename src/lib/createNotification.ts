@@ -100,10 +100,10 @@ async function sendFcmPush(
 
   // Fetch actor name + all recipient FCM tokens in parallel
   const [actorProfile, recipientProfiles] = await Promise.all([
-    Profile.findById(actorId).select("name").lean() as Promise<{ name: string } | null>,
+    Profile.findById(actorId).select("name").lean() as unknown as Promise<{ name: string } | null>,
     Profile.find({ _id: { $in: targets }, fcm_tokens: { $exists: true, $ne: [] } })
       .select("fcm_tokens")
-      .lean() as Promise<{ fcm_tokens: string[] }[]>,
+      .lean() as unknown as Promise<{ fcm_tokens: string[] }[]>,
   ]);
 
   const tokens = recipientProfiles.flatMap((p) => p.fcm_tokens ?? []);
