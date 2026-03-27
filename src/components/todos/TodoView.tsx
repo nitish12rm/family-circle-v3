@@ -125,20 +125,20 @@ export default function TodoView() {
       )}
 
       {/* Add input */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 items-stretch">
         <input
           ref={inputRef}
           type="text"
-          placeholder="Add a new task…"
+          placeholder="What needs to be done?"
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-          className="flex-1 bg-bg-2 border border-border rounded-xl px-3.5 py-2.5 text-sm text-text placeholder:text-text-faint focus:outline-none focus:border-purple-500/60 transition-colors"
+          className="flex-1 min-w-0 bg-bg-2 border border-border rounded-xl px-3.5 py-2.5 text-sm text-text placeholder:text-text-faint focus:outline-none focus:border-purple-500/60 transition-colors"
         />
         <button
           onClick={handleAdd}
           disabled={adding || !newTitle.trim()}
-          className="px-4 py-2.5 bg-purple-500 text-white rounded-xl text-sm font-medium disabled:opacity-40 transition-opacity active:scale-95 shrink-0"
+          className="px-4 py-2.5 bg-purple-500 text-white rounded-xl text-sm font-medium disabled:opacity-40 transition-opacity active:scale-95 shrink-0 min-w-[56px] flex items-center justify-center"
         >
           {adding ? <Spinner size={14} /> : "Add"}
         </button>

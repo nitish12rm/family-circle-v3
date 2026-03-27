@@ -437,7 +437,7 @@ export default function PostCard({ post, onDelete, onEdit, navigable = true, onL
           {media.length > 1 && lightboxIndex > 0 && (
             <button className="absolute left-3 p-2 text-white/70 hover:text-white z-10" onClick={(e) => { e.stopPropagation(); setLightboxIndex((i) => (i ?? 1) - 1); }}><ChevronLeft size={28} /></button>
           )}
-          <div className="w-full h-full flex items-center justify-center px-12 py-16" onClick={(e) => e.stopPropagation()}>
+          <div className="w-full h-full flex items-center justify-center px-4 py-10 sm:px-12 sm:py-16" onClick={(e) => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={media[lightboxIndex]} alt="" className="max-w-full max-h-full object-contain" />
           </div>
